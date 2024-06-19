@@ -60,6 +60,21 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         }
         Err(e) => outputs.push(Err(e.to_string())),
     }
+    let output_2 = std::process::Command::new(python.unwrap_or("python3"))
+        .arg("-m")
+        .arg("venv")
+        .arg("-h")
+        .output();
+    match output_2 {
+        Ok(out) => {
+            if out.status.success() {
+                outputs.push(Ok(std::str::from_utf8(&out.stdout).unwrap().to_string()));
+            } else {
+                outputs.push(Err(std::str::from_utf8(&out.stderr).unwrap().to_string()));
+            }
+        }
+        Err(e) => outputs.push(Err(e.to_string())),
+    }
     // check standard library
     let script = include_str!("./../python_scripts/sanity_check/import_standard_library.py");
     outputs.push(run_python_script(&script, python));
