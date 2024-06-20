@@ -5,6 +5,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
+use crate::python_utils::get_python_platform_definition;
+
 #[derive(Deserialize, Debug)]
 pub struct Tool {
     pub description: String,
@@ -86,7 +88,7 @@ pub fn filter_tools_by_target(tools: Vec<Tool>, target: &String) -> Vec<Tool> {
         .collect()
 }
 
-// TODO: get this by direct calling the idf_tool.py so the code is not duplicate
+// TODO: maybe get this by direct calling the idf_tool.py so the hashtable is not duplicate
 pub fn get_platform_identification() -> Result<String, String> {
     let mut platform_from_name = HashMap::new();
 
@@ -139,22 +141,11 @@ pub fn get_platform_identification() -> Result<String, String> {
     platform_from_name.insert("Linux-armv7l", "linux-armel");
     platform_from_name.insert("Linux-arm", "linux-armel");
 
-    // You can now use the platform_from_name HashMap
-    // println!("{:?}", platform_from_name);
+    let python_platform_string = get_python_platform_definition(None);
 
-    // should match the PLATFORM_FROM_NAME from idf_tools.py
-    let os_type = match sys_info::os_type() {
-        Ok(os) => os,
-        Err(e) => return Err(format!("Error getting OS Type: {}", e)),
-    };
-
-    let arch = ARCH;
-    let platform_string = format!("{}-{}", os_type, arch);
-    // println!("{}", &platform_string.as_str());
-
-    let platform = match platform_from_name.get(&platform_string.as_str()) {
+    let platform = match platform_from_name.get(&python_platform_string.as_str()) {
         Some(platform) => platform,
-        None => return Err(format!("Unsupported platform: {}", platform_string)),
+        None => return Err(format!("Unsupported platform: {}", python_platform_string)),
     };
     Ok(platform.to_string())
 }

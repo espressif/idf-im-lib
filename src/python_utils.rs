@@ -42,6 +42,16 @@ pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, S
     }
 }
 
+pub fn get_python_platform_definition(python: Option<&str>) -> String {
+    match run_python_script(
+        "import platform; print(f'{platform.system()}-{platform.machine()}')",
+        python,
+    ) {
+        Ok(out) => out,
+        Err(e) => e,
+    }
+}
+
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
     let mut outputs = Vec::new();
     // check pip
