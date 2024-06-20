@@ -8,11 +8,17 @@ pub fn run_python_script_from_file(
     path: &str,
     args: Option<&str>,
     python: Option<&str>,
+    envs: Option<Vec<(String, String)>>,
 ) -> Result<String, String> {
-    let output = std::process::Command::new(python.unwrap_or("python3"))
-        .arg(path)
-        .arg(args.unwrap_or(""))
-        .output();
+    let mut binding = std::process::Command::new(python.unwrap_or("python3"));
+    let command = binding.arg(path).arg(args.unwrap_or(""));
+
+    if let Some(envs) = envs {
+        for (key, value) in envs {
+            command.env(key, value);
+        }
+    }
+    let output = command.output();
     match output {
         Ok(out) => {
             if out.status.success() {
