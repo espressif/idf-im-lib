@@ -42,6 +42,16 @@ pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, S
     }
 }
 
+pub fn get_python_platform_definition(python: Option<&str>) -> String {
+    match run_python_script(
+        "import platform; print(f'{platform.system()}-{platform.machine()}')",
+        python,
+    ) {
+        Ok(out) => out,
+        Err(e) => e,
+    }
+}
+
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
     let mut outputs = Vec::new();
     // check pip
@@ -51,6 +61,21 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         .arg("--version")
         .output();
     match output {
+        Ok(out) => {
+            if out.status.success() {
+                outputs.push(Ok(std::str::from_utf8(&out.stdout).unwrap().to_string()));
+            } else {
+                outputs.push(Err(std::str::from_utf8(&out.stderr).unwrap().to_string()));
+            }
+        }
+        Err(e) => outputs.push(Err(e.to_string())),
+    }
+    let output_2 = std::process::Command::new(python.unwrap_or("python3"))
+        .arg("-m")
+        .arg("venv")
+        .arg("-h")
+        .output();
+    match output_2 {
         Ok(out) => {
             if out.status.success() {
                 outputs.push(Ok(std::str::from_utf8(&out.stdout).unwrap().to_string()));
