@@ -141,7 +141,7 @@ pub fn get_platform_identification() -> Result<String, String> {
     platform_from_name.insert("Linux-armv7l", "linux-armel");
     platform_from_name.insert("Linux-arm", "linux-armel");
 
-    let python_platform_string = get_python_platform_definition(None);
+    let python_platform_string = get_python_platform_definition(None).trim().to_string();
 
     let platform = match platform_from_name.get(&python_platform_string.as_str()) {
         Some(platform) => platform,

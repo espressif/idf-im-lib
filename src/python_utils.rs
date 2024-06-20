@@ -8,7 +8,7 @@ pub fn run_python_script_from_file(
     path: &str,
     args: Option<&str>,
     python: Option<&str>,
-    envs: Option<Vec<(String, String)>>,
+    envs: Option<&Vec<(String, String)>>,
 ) -> Result<String, String> {
     let mut binding = std::process::Command::new(python.unwrap_or("python3"));
     let command = binding.arg(path).arg(args.unwrap_or(""));
