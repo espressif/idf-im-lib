@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::env::consts::ARCH;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;

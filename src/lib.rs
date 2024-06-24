@@ -1,4 +1,5 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
+use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
 use reqwest::Client;
 
 pub mod idf_tools;
@@ -73,24 +74,59 @@ pub fn add_path_to_path(directory_path: &str) {
     }
 }
 
-pub fn get_rustpython_fork(custom_path: &str) -> Result<String, std::io::Error> {
-    let output = std::process::Command::new("git")
-        .current_dir(custom_path)
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg("--branch")
-        .arg("test-rust-build")
-        .arg("https://github.com/Hahihula/RustPython.git")
-        .output();
+fn shallow_clone(
+    url: &str,
+    path: &str,
+    branch: Option<&str>,
+    tag: Option<&str>,
+    progress_function: impl FnMut(Progress<'_>) -> bool,
+) -> Result<Repository, git2::Error> {
+    let mut fo = FetchOptions::new();
+    if tag.is_none() {
+        fo.depth(1);
+    }
+
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.transfer_progress(progress_function);
+    fo.remote_callbacks(callbacks);
+
+    let mut builder = git2::build::RepoBuilder::new();
+    builder.fetch_options(fo);
+    if let Some(branch) = branch {
+        builder.branch(branch);
+    };
+
+    let repo = builder.clone(url, Path::new(path))?;
+    if let Some(tag) = tag {
+        // Look up the tag
+        let tag_ref = repo.find_reference(&format!("refs/tags/{}", tag))?;
+        let tag_obj = tag_ref.peel(ObjectType::Commit)?;
+
+        // Checkout the commit that the tag points to
+        repo.checkout_tree(&tag_obj, None)?;
+        repo.set_head_detached(tag_obj.id())?;
+    };
+    if let Some(branch) = branch {
+        let obj = repo.revparse_single(&format!("origin/{}", branch))?;
+        repo.checkout_tree(&obj, None)?;
+        repo.set_head(&format!("refs/heads/{}", branch))?;
+    };
+    Ok(repo)
+}
+
+pub fn get_rustpython_fork(
+    custom_path: &str,
+    progress_function: impl FnMut(Progress<'_>) -> bool,
+) -> Result<String, git2::Error> {
+    let output = shallow_clone(
+        "https://github.com/Hahihula/RustPython.git",
+        custom_path,
+        Some("test-rust-build"),
+        None,
+        progress_function,
+    );
     match output {
-        Ok(out) => {
-            if out.status.success() {
-                Ok(std::str::from_utf8(&out.stdout).unwrap().to_string())
-            } else {
-                Ok(std::str::from_utf8(&out.stderr).unwrap().to_string())
-            }
-        }
+        Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
         Err(e) => Err(e),
     }
 }
@@ -122,25 +158,21 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
     }
 }
 
-pub fn get_esp_idf_by_tag_name(custom_path: &str, tag: &str) -> Result<String, std::io::Error> {
+pub fn get_esp_idf_by_tag_name(
+    custom_path: &str,
+    tag: &str,
+    progress_function: impl FnMut(Progress<'_>) -> bool,
+) -> Result<String, git2::Error> {
     let _ = ensure_path(custom_path);
-    let output = std::process::Command::new("git")
-        .current_dir(custom_path)
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg("--branch")
-        .arg(tag)
-        .arg("https://github.com/espressif/esp-idf.git")
-        .output();
+    let output = shallow_clone(
+        "https://github.com/espressif/esp-idf.git",
+        custom_path,
+        None,
+        Some(tag),
+        progress_function,
+    );
     match output {
-        Ok(out) => {
-            if out.status.success() {
-                Ok(std::str::from_utf8(&out.stdout).unwrap().to_string())
-            } else {
-                Ok(std::str::from_utf8(&out.stderr).unwrap().to_string())
-            }
-        }
+        Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
         Err(e) => Err(e),
     }
 }
