@@ -87,7 +87,7 @@ pub async fn get_idf_name_by_target(target: &String) -> Vec<String> {
     let mut selected_versions = vec![];
     if let Some(versions) = versions_by_target.get(target) {
         for v in versions {
-            if v.end_of_life || v.pre_release || v.old {
+            if v.end_of_life || v.pre_release || v.old || v.name == "latest" {
                 continue;
             }
             selected_versions.push(v.name.clone());

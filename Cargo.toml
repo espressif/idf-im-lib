@@ -15,4 +15,5 @@ rustpython-stdlib = { git="https://github.com/Hahihula/RustPython.git", branch="
 colored = "2.1.0"
 sys-info = "0.9.1"
 decompress = "0.6.0"
+git2 = "0.19.0"
 
