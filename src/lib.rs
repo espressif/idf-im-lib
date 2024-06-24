@@ -59,13 +59,18 @@ pub fn ensure_path(directory_path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+// this work on windows only
 pub fn add_path_to_path(directory_path: &str) {
-    let current_path = match env::var("PATH") {
-        Ok(path) => path,
-        Err(_) => String::new(),
-    };
-    let new_path = format!("{}:{}", directory_path, current_path);
-    env::set_var("PATH", &new_path);
+    let current_path = env::var("PATH").unwrap_or_default();
+    if !current_path.contains(directory_path) {
+        let new_path = if current_path.is_empty() {
+            directory_path.to_owned()
+        } else {
+            format!("{};{}", current_path, directory_path)
+        };
+
+        env::set_var("PATH", new_path);
+    }
 }
 
 pub fn get_rustpython_fork(custom_path: &str) -> Result<String, std::io::Error> {
