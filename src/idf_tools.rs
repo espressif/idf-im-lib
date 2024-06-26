@@ -46,7 +46,7 @@ pub struct Version {
     pub downloads: HashMap<String, Download>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Download {
     pub sha256: String,
     pub size: u64,
@@ -152,19 +152,16 @@ pub fn get_platform_identification() -> Result<String, String> {
 pub fn get_download_link_by_platform(
     tools: Vec<Tool>,
     platform: &String,
-) -> HashMap<String, String> {
+) -> HashMap<String, Download> {
     // println!("{:#?}", tools);
     let mut tool_links = HashMap::new();
     for tool in tools {
         // tool.name
         tool.versions.iter().for_each(|version| {
-            let download_link = match version.downloads.get(platform) {
-                Some(download) => Some(download.url.clone()),
+            match version.downloads.get(platform) {
+                Some(download) => tool_links.insert(tool.name.clone(), download.clone()),
                 None => None,
             };
-            if let Some(download_link) = download_link {
-                tool_links.insert(tool.name.clone(), download_link.clone());
-            }
         });
     }
     // println!("{:#?}", tool_links);
@@ -173,15 +170,20 @@ pub fn get_download_link_by_platform(
 
 // only known mirror at the time is: "dl.espressif.com/github_assets"
 pub fn change_links_donwanload_mirror(
-    tools: HashMap<String, String>,
+    tools: HashMap<String, Download>,
     mirror: Option<&str>,
-) -> HashMap<String, String> {
-    let new_tools: HashMap<String, String> = tools
+) -> HashMap<String, Download> {
+    let new_tools: HashMap<String, Download> = tools
         .iter()
         .map(|(name, link)| {
             let new_link = match mirror {
-                Some(mirror) => link.replace("https://github.com", mirror),
-                None => link.to_string(),
+                Some(mirror) => Download {
+                    sha256: link.sha256.clone(),
+                    size: link.size,
+                    url: link.url.replace("https://github.com", mirror),
+                    rename_dist: link.rename_dist.clone(),
+                },
+                None => link.clone(),
             };
             (name.to_string(), new_link)
         })
