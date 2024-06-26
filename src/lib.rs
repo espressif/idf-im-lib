@@ -7,12 +7,14 @@ pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod system_dependencies;
+use log::{error, info};
 use std::{
     env,
     fs::{self, File},
     io::{self, Read, Write},
     path::Path,
 };
+
 /// Verifies the SHA256 checksum of a file against an expected checksum.
 ///
 /// # Arguments
@@ -289,9 +291,9 @@ pub fn apply_patchset(base_path: &str, patchset_name: &str) -> Result<String, st
         format!("../{}", patchset_name),
         format!("{}/{}", custom_path, patchset_name),
     ) {
-        println!("Failed to copy file: {}", e);
+        error!("Failed to copy file: {}", e);
     } else {
-        println!("File copied successfully");
+        info!("File copied successfully");
     }
     let output = std::process::Command::new("git")
         .current_dir(custom_path)
@@ -312,7 +314,6 @@ pub fn apply_patchset(base_path: &str, patchset_name: &str) -> Result<String, st
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn it_works() {

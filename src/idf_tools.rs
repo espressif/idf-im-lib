@@ -153,10 +153,8 @@ pub fn get_download_link_by_platform(
     tools: Vec<Tool>,
     platform: &String,
 ) -> HashMap<String, Download> {
-    // println!("{:#?}", tools);
     let mut tool_links = HashMap::new();
     for tool in tools {
-        // tool.name
         tool.versions.iter().for_each(|version| {
             match version.downloads.get(platform) {
                 Some(download) => tool_links.insert(tool.name.clone(), download.clone()),
@@ -164,7 +162,6 @@ pub fn get_download_link_by_platform(
             };
         });
     }
-    // println!("{:#?}", tool_links);
     tool_links
 }
 
