@@ -1,6 +1,7 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
 use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
 use reqwest::Client;
+use sha2::{Digest, Sha256};
 
 pub mod idf_tools;
 pub mod idf_versions;
@@ -9,9 +10,37 @@ pub mod system_dependencies;
 use std::{
     env,
     fs::{self, File},
-    io::Write,
+    io::{self, Read, Write},
     path::Path,
 };
+
+pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<bool, io::Error> {
+    if !Path::new(file_path).exists() {
+        return Ok(false);
+    }
+
+    let mut file = File::open(file_path)?;
+
+    let mut hasher = Sha256::new();
+
+    let mut buffer = [0; 1024];
+    loop {
+        let bytes_read = file.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    // Get the final hash
+    let result = hasher.finalize();
+
+    // Convert the hash to a hexadecimal string
+    let computed_checksum = format!("{:x}", result);
+
+    // Compare the computed checksum with the expected checksum
+    Ok(computed_checksum == expected_checksum)
+}
 
 pub async fn download_file(
     url: &str,
