@@ -13,7 +13,18 @@ use std::{
     io::{self, Read, Write},
     path::Path,
 };
-
+/// Verifies the SHA256 checksum of a file against an expected checksum.
+///
+/// # Arguments
+///
+/// * `expected_checksum` - A string representing the expected SHA256 checksum.
+/// * `file_path` - A string representing the path to the file to be verified.
+///
+/// # Returns
+///
+/// * `Ok(true)` if the file's checksum matches the expected checksum.
+/// * `Ok(false)` if the file does not exist or its checksum does not match the expected checksum.
+/// * `Err(io::Error)` if an error occurs while opening or reading the file.
 pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<bool, io::Error> {
     if !Path::new(file_path).exists() {
         return Ok(false);
@@ -42,34 +53,87 @@ pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<
     Ok(computed_checksum == expected_checksum)
 }
 
+/// Asynchronously downloads a file from a given URL to a specified destination path.
+///
+/// # Arguments
+///
+/// * `url` - A string representing the URL from which to download the file.
+/// * `destination_path` - A string representing the path to which the file should be downloaded.
+/// * `show_progress` - A function pointer to a function that will be called to show the progress of the download.
+///
+/// # Returns
+///
+/// * `Ok(())` if the file was successfully downloaded.
+/// * `Err(std::io::Error)` if an error occurred during the download process.
+///
+/// # Example
+///
+/// ```rust
+/// use std::io::Write;
+///
+/// async fn download_progress_callback(downloaded: u64, total: u64) {
+///     let percentage = (downloaded as f64 / total as f64) * 100.0;
+///     print!("\rDownloading... {:.2}%", percentage);
+///     io::stdout().flush().unwrap();
+/// }
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let url = "https://example.com/file.zip";
+///     let destination_path = "/path/to/destination";
+///
+///     match download_file(url, destination_path, &download_progress_callback).await {
+///         Ok(()) => println!("\nDownload completed successfully"),
+///         Err(e) => eprintln!("Error during download: {}", e),
+///     }
+/// }
+/// ```
 pub async fn download_file(
     url: &str,
     destination_path: &str,
     show_progress: &dyn Fn(u64, u64),
 ) -> Result<(), std::io::Error> {
+    // Create a new HTTP client
     let client = Client::new();
+
+    // Send a GET request to the specified URL
     let mut response = client
         .get(url)
         .send()
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    // Get the total size of the file being downloaded
     let total_size = response.content_length().ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::Other, "Failed to get content length")
     })?;
+
+    // Extract the filename from the URL
     let filename = Path::new(&url).file_name().unwrap().to_str().unwrap();
+
+    // Create a new file at the specified destination path
     let mut file = File::create(Path::new(&destination_path).join(Path::new(filename)))?;
+
+    // Initialize the amount downloaded
     let mut amount_downloaded: u64 = 0;
 
+    // Download the file in chunks
     while let Some(chunk) = response
         .chunk()
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
     {
+        // Update the amount downloaded
         amount_downloaded += chunk.len() as u64;
+
+        // Write the chunk to the file
         file.write_all(&chunk)?;
+
+        // Call the progress callback function
         show_progress(amount_downloaded, total_size);
     }
 
+    // Return Ok(()) if the download was successful
     Ok(())
 }
 
@@ -81,9 +145,21 @@ pub fn decompress_archive(
     decompress::decompress(archive_path, destination_path, opts)
 }
 
+/// Ensures that a directory exists at the specified path.
+/// If the directory does not exist, it will be created.
+///
+/// # Arguments
+///
+/// * `directory_path` - A string representing the path to the directory to be ensured.
+///
+/// # Returns
+///
+/// * `Ok(())` if the directory was successfully created or already exists.
+/// * `Err(std::io::Error)` if an error occurred while creating the directory.
 pub fn ensure_path(directory_path: &str) -> std::io::Result<()> {
     let path = Path::new(directory_path);
     if !path.exists() {
+        // If the directory does not exist, create it
         fs::create_dir_all(directory_path)?;
     }
     Ok(())
