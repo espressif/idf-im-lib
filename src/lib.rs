@@ -7,6 +7,8 @@ pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod system_dependencies;
+#[cfg(windows)]
+pub mod win_tools;
 use log::{error, info};
 use std::{
     env,

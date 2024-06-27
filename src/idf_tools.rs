@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::python_utils::get_python_platform_definition;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Tool {
     pub description: String,
     pub export_paths: Vec<Vec<String>>,
@@ -29,7 +29,7 @@ pub struct Tool {
     pub versions: Vec<Version>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct PlatformOverride {
     #[serde(default)]
     pub install: Option<String>,
@@ -38,7 +38,7 @@ pub struct PlatformOverride {
     pub export_paths: Option<Vec<Vec<String>>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Version {
     pub name: String,
     pub status: String,
@@ -55,7 +55,7 @@ pub struct Download {
     pub rename_dist: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ToolsFile {
     pub tools: Vec<Tool>,
     pub version: u8,
