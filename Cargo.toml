@@ -18,4 +18,9 @@ decompress = "0.6.0"
 git2 = "0.19.0"
 sha2 = "0.10.8"
 log = "0.4.21"
+dirs = "5.0.1"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52.0"
+winapi = "0.3.9"
 
