@@ -271,15 +271,14 @@ pub fn get_esp_idf_by_tag_name(
     custom_path: &str,
     tag: &str,
     progress_function: impl FnMut(Progress<'_>) -> bool,
+    mirror: Option<&str>,
 ) -> Result<String, git2::Error> {
+    let url = match mirror {
+        Some(url) => "https://github.com/espressif/esp-idf.git".replace("https://github.com", url),
+        None => "https://github.com/espressif/esp-idf.git".to_string(),
+    };
     let _ = ensure_path(custom_path);
-    let output = shallow_clone(
-        "https://github.com/espressif/esp-idf.git",
-        custom_path,
-        None,
-        Some(tag),
-        progress_function,
-    );
+    let output = shallow_clone(&url, custom_path, None, Some(tag), progress_function);
     match output {
         Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
         Err(e) => Err(e),
