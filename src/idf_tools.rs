@@ -61,19 +61,39 @@ pub struct ToolsFile {
     pub version: u8,
 }
 
+/// Reads and parses the tools file from the given path.
+///
+/// # Arguments
+///
+/// * `path` - A string slice representing the path to the tools file.
+///
+/// # Returns
+///
+/// * `Result<ToolsFile, Box<dyn std::error::Error>>` - On success, returns a `ToolsFile` instance.
+///   On error, returns a `Box<dyn std::error::Error>` containing the error details.
 pub fn read_and_parse_tools_file(path: &str) -> Result<ToolsFile, Box<dyn std::error::Error>> {
-    // Read the file contents
     let path = Path::new(path);
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    // Parse the file contents into a ToolsFile struct using serde
     let tools_file: ToolsFile = serde_json::from_str(&contents)?;
 
     Ok(tools_file)
 }
 
+/// Filters a list of tools based on the given target platform.
+///
+/// # Arguments
+///
+/// * `tools` - A vector of `Tool` instances to be filtered.
+/// * `target` - A reference to a string representing the target platform (esp32 esp32c3)
+///
+/// # Returns
+///
+/// * A vector of `Tool` instances that match the given target platform.
+///   If no matching tools are found, an empty vector is returned.
+///
 pub fn filter_tools_by_target(tools: Vec<Tool>, target: &String) -> Vec<Tool> {
     tools
         .into_iter()
@@ -149,6 +169,18 @@ pub fn get_platform_identification() -> Result<String, String> {
     Ok(platform.to_string())
 }
 
+/// Retrieves a HashMap of tool names and their corresponding Download instances based on the given platform.
+///
+/// # Arguments
+///
+/// * `tools` - A vector of `Tool` instances.
+/// * `platform` - A reference to a string representing the target platform. This can be obtained from the `get_platform_identification` function.
+///
+/// # Returns
+///
+/// * A HashMap where the keys are tool names and the values are Download instances.
+///   If a tool does not have a download for the given platform, it is not included in the HashMap.
+///
 pub fn get_download_link_by_platform(
     tools: Vec<Tool>,
     platform: &String,
@@ -165,7 +197,19 @@ pub fn get_download_link_by_platform(
     tool_links
 }
 
-// only known mirror at the time is: "dl.espressif.com/github_assets"
+/// Changes the download links of tools to use a specified mirror.
+///
+/// # Arguments
+///
+/// * `tools` - A HashMap containing tool names as keys and their corresponding Download instances as values.
+/// * `mirror` - An optional reference to a string representing the mirror URL. If None, the original URLs are used.
+///
+/// # Returns
+///
+/// * A new HashMap with the same keys as the input `tools` but with updated Download instances.
+///   The URLs of the Download instances are replaced with the mirror URL if provided.
+///
+
 pub fn change_links_donwanload_mirror(
     tools: HashMap<String, Download>,
     mirror: Option<&str>,
@@ -186,4 +230,119 @@ pub fn change_links_donwanload_mirror(
         })
         .collect();
     new_tools
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[test]
+    fn test_change_links_download_mirror_multiple_tools() {
+        let mut tools = HashMap::new();
+        tools.insert(
+            "tool1".to_string(),
+            Download {
+                sha256: "abc123".to_string(),
+                size: 1024,
+                url: "https://github.com/example/tool1.tar.gz".to_string(),
+                rename_dist: None,
+            },
+        );
+        tools.insert(
+            "tool2".to_string(),
+            Download {
+                sha256: "def456".to_string(),
+                size: 2048,
+                url: "https://github.com/example/tool2.tar.gz".to_string(),
+                rename_dist: None,
+            },
+        );
+
+        let mirror = Some("https://dl.espressif.com/github_assets");
+        let updated_tools = change_links_donwanload_mirror(tools, mirror);
+
+        assert_eq!(
+            updated_tools.get("tool1").unwrap().url,
+            "https://dl.espressif.com/github_assets/example/tool1.tar.gz"
+        );
+        assert_eq!(
+            updated_tools.get("tool2").unwrap().url,
+            "https://dl.espressif.com/github_assets/example/tool2.tar.gz"
+        );
+    }
+
+    #[test]
+    fn test_change_links_download_mirror_no_mirror() {
+        let mut tools = HashMap::new();
+        tools.insert(
+            "tool1".to_string(),
+            Download {
+                sha256: "abc123".to_string(),
+                size: 1024,
+                url: "https://github.com/example/tool1.tar.gz".to_string(),
+                rename_dist: None,
+            },
+        );
+
+        let mirror = None;
+        let updated_tools = change_links_donwanload_mirror(tools, mirror);
+
+        assert_eq!(
+            updated_tools.get("tool1").unwrap().url,
+            "https://github.com/example/tool1.tar.gz"
+        );
+    }
+
+    #[test]
+    fn test_change_links_download_mirror_empty_tools() {
+        let tools = HashMap::new();
+
+        let mirror = Some("https://dl.espressif.com/github_assets");
+        let updated_tools = change_links_donwanload_mirror(tools, mirror);
+
+        assert_eq!(updated_tools.len(), 0);
+    }
+
+    #[test]
+    fn test_change_links_download_mirror_no_github_url() {
+        let mut tools = HashMap::new();
+        tools.insert(
+            "tool1".to_string(),
+            Download {
+                sha256: "abc123".to_string(),
+                size: 1024,
+                url: "https://example.com/tool1.tar.gz".to_string(),
+                rename_dist: None,
+            },
+        );
+
+        let mirror = Some("https://dl.espressif.com/github_assets");
+        let updated_tools = change_links_donwanload_mirror(tools, mirror);
+
+        assert_eq!(
+            updated_tools.get("tool1").unwrap().url,
+            "https://example.com/tool1.tar.gz"
+        );
+    }
+
+    #[test]
+    fn test_change_links_download_mirror_empty_url() {
+        let mut tools = HashMap::new();
+        tools.insert(
+            "tool1".to_string(),
+            Download {
+                sha256: "abc123".to_string(),
+                size: 1024,
+                url: "".to_string(),
+                rename_dist: None,
+            },
+        );
+
+        let mirror = Some("https://dl.espressif.com/github_assets");
+        let updated_tools = change_links_donwanload_mirror(tools, mirror);
+
+        assert_eq!(updated_tools.get("tool1").unwrap().url, "");
+    }
 }
