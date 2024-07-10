@@ -73,6 +73,8 @@ pub fn get_prequisites() -> Vec<&'static str> {
 /// * `Err(String)` - If an error occurs, returns an error message.
 pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
     let list_of_required_tools = get_prequisites();
+    debug!("Checking for prerequisites...");
+    debug!("will be checking for : {:?}", list_of_required_tools);
     let mut unsatisfied = vec![];
     match std::env::consts::OS {
         "linux" => {

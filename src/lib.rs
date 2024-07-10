@@ -379,7 +379,7 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
 /// ```
 pub fn get_esp_idf_by_tag_name(
     custom_path: &str,
-    tag: &str,
+    tag: Option<&str>,
     progress_function: impl FnMut(Progress<'_>) -> bool,
     mirror: Option<&str>,
 ) -> Result<String, git2::Error> {
@@ -388,7 +388,10 @@ pub fn get_esp_idf_by_tag_name(
         None => "https://github.com/espressif/esp-idf.git".to_string(),
     };
     let _ = ensure_path(custom_path);
-    let output = shallow_clone(&url, custom_path, None, Some(tag), progress_function);
+    let output = match tag {
+        Some(tag) => shallow_clone(&url, custom_path, None, Some(tag), progress_function),
+        None => shallow_clone(&url, custom_path, Some("master"), None, progress_function),
+    };
     match output {
         Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
         Err(e) => Err(e),
