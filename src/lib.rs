@@ -382,11 +382,19 @@ pub fn get_esp_idf_by_tag_name(
     tag: Option<&str>,
     progress_function: impl FnMut(Progress<'_>) -> bool,
     mirror: Option<&str>,
+    group_name: Option<&str>,
 ) -> Result<String, git2::Error> {
+    let group = match group_name {
+        Some(group) => group,
+        None => "espressif",
+    };
     let url = match mirror {
-        Some(url) => "https://github.com/espressif/esp-idf.git".replace("https://github.com", url),
+        Some(url) => {
+            format!("https://github.com/{}/esp-idf.git", group).replace("https://github.com", url)
+        }
         None => "https://github.com/espressif/esp-idf.git".to_string(),
     };
+
     let _ = ensure_path(custom_path);
     let output = match tag {
         Some(tag) => shallow_clone(&url, custom_path, None, Some(tag), progress_function),
