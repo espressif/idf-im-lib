@@ -47,16 +47,14 @@ pub fn get_prequisites() -> Vec<&'static str> {
             "flex",
             "bison",
             "gperf",
-            "cmake",
-            "ninja-build",
             "ccache",
             "libffi-dev",
             "libssl-dev",
             "dfu-util",
             "libusb-1.0-0",
         ],
-        "windows" => vec!["cmake", "ninja", "git"],
-        "macos" => vec!["cmake", "ninja", "dfu-util"],
+        "windows" => vec!["git"],
+        "macos" => vec!["dfu-util"],
         _ => vec![],
     }
 }
