@@ -1,3 +1,5 @@
+use std::{env, path::PathBuf};
+
 use log::{debug, trace};
 
 /// Determines the package manager installed on the system.
@@ -241,19 +243,22 @@ fn install_scoop_package_manager() -> Result<(), String> {
                     return Err(String::from("Could not get scoop path"));
                 }
             };
+            // add_to_windows_path(&path_with_scoop).unwrap();
+            add_to_path(&path_with_scoop).unwrap();
             let _ = std::process::Command::new("powershell")
                 .arg("-Command")
                 .arg("Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force")
                 .output();
             let output = std::process::Command::new("powershell")
                 .arg("-Command")
-                .env(String::from("PATH"),path_with_scoop )
                 .arg("Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')")
                 .output();
             match output {
                 Ok(o) => {
                     trace!("{}", String::from_utf8(o.stdout).unwrap());
                     debug!("Successfully installed Scoop package manager. Adding to PATH");
+                    #[cfg(windows)]
+                    crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
                     Ok(())
                 }
                 Err(e) => Err(e.to_string()),
@@ -289,8 +294,9 @@ pub fn ensure_scoop_package_manager() -> Result<(), String> {
             };
             #[cfg(windows)]
             crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
+            // add_to_windows_path(&path_with_scoop).unwrap();
+            add_to_path(&path_with_scoop).unwrap();
             let output = std::process::Command::new("powershell")
-                .env(String::from("PATH"), path_with_scoop)
                 .args(&["-Command", "scoop", "--version"])
                 .output();
             match output {
@@ -430,7 +436,6 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 };
                 debug!("Installing {} with scoop: {}", package, path_with_scoop);
                 let output = std::process::Command::new("powershell")
-                    .env(String::from("PATH"), path_with_scoop)
                     .args(&["-Command", "scoop", "install", &package])
                     .output();
                 match output {
@@ -446,5 +451,33 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
             return Err(format!("Unsupported OS - {}", std::env::consts::OS));
         }
     }
+    Ok(())
+}
+
+/// Adds a new directory to the system's PATH environment variable.
+///
+/// This function checks if the new directory is already present in the PATH environment variable.
+/// If it is not present, the function appends the new directory to the PATH.
+///
+/// # Parameters
+///
+/// * `new_path` - A string representing the path of the new directory to be added to the PATH.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the new directory is successfully added to the PATH.
+/// * `Err(std::io::Error)` - If an error occurs while trying to add the new directory to the PATH.
+fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
+    let binding = env::var_os("PATH").unwrap_or_default();
+    let paths = binding.to_str().unwrap();
+
+    if !paths.contains(&new_path) {
+        let new_path_string = match std::env::consts::OS {
+            "windows" => format!("{};{}", new_path, paths),
+            _ => format!("{}:{}", new_path, paths),
+        };
+        env::set_var("PATH", new_path_string);
+    }
+
     Ok(())
 }
