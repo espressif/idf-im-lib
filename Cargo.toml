@@ -20,6 +20,7 @@ sha2 = "0.10.8"
 log = "0.4.21"
 dirs = "5.0.1"
 tera = "1.20.0"
+idf-env = { git = "https://github.com/Hahihula/idf-env.git", rev="f36ff4657a04ab36ff4a3d178570583a8ed8d888" }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52.0"

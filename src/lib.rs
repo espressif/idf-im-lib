@@ -5,6 +5,7 @@ use reqwest::Client;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
 
+pub mod drivers;
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
@@ -270,6 +271,7 @@ pub async fn download_file(
     url: &str,
     destination_path: &str,
     show_progress: &dyn Fn(u64, u64),
+    to_filename: Option<&str>,
 ) -> Result<(), std::io::Error> {
     // Create a new HTTP client
     let client = Client::new();
@@ -287,7 +289,10 @@ pub async fn download_file(
     })?;
 
     // Extract the filename from the URL
-    let filename = Path::new(&url).file_name().unwrap().to_str().unwrap();
+    let filename = match to_filename {
+        Some(f) => f,
+        None => Path::new(&url).file_name().unwrap().to_str().unwrap(),
+    };
 
     // Create a new file at the specified destination path
     let mut file = File::create(Path::new(&destination_path).join(Path::new(filename)))?;
