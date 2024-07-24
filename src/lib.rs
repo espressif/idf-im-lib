@@ -13,9 +13,33 @@ use std::{
     env,
     fs::{self, File},
     io::{self, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
+/// Retrieves the path to the local data directory for storing logs.
+///
+/// This function uses the `dirs` crate to find the appropriate directory for storing logs.
+/// If the local data directory is found, it creates a subdirectory named "logs" within it.
+/// If the directory creation fails, it returns an error.
+///
+/// # Returns
+///
+/// * `Some(PathBuf)` if the local data directory and log directory are successfully created.
+/// * `None` if the local data directory cannot be determined.
+///
+pub fn get_log_directory() -> Option<PathBuf> {
+    // Use the dirs crate to find the local data directory
+    dirs::data_local_dir().map(|data_dir| {
+        // Create a subdirectory named "logs" within the local data directory
+        let log_dir = data_dir.join("eim").join("logs");
+
+        // Attempt to create the log directory
+        std::fs::create_dir_all(&log_dir).expect("Failed to create log directory");
+
+        // Return the path to the log directory
+        log_dir
+    })
+}
 /// Verifies the SHA256 checksum of a file against an expected checksum.
 ///
 /// # Arguments
