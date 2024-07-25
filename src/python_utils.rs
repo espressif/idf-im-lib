@@ -10,12 +10,26 @@ pub fn run_python_script_from_file(
     python: Option<&str>,
     envs: Option<&Vec<(String, String)>>,
 ) -> Result<String, String> {
-    let mut binding = std::process::Command::new(python.unwrap_or("python3"));
-    let command = binding.arg(path).arg(args.unwrap_or(""));
+    let mut binding = match std::env::consts::OS {
+        "windows" => std::process::Command::new("powershell"),
+        _ => std::process::Command::new("bash"),
+    };
+
+    let mut command = match std::env::consts::OS {
+        "windows" => binding
+            .arg("-Command")
+            .arg(python.unwrap_or("python3.exe"))
+            .arg(path),
+        _ => binding.arg("-c").arg(python.unwrap_or("python3")).arg(path),
+    };
+
+    if let Some(args) = args {
+        command = command.arg(args);
+    }
 
     if let Some(envs) = envs {
         for (key, value) in envs {
-            command.env(key, value);
+            command = command.env(key, value);
         }
     }
     let output = command.output();

@@ -1,5 +1,6 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
 use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
+use log::{error, info, warn};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
 
@@ -14,7 +15,74 @@ use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
+    process::Command,
 };
+
+pub fn create_desktop_shortcut() -> Result<(), std::io::Error> {
+    match std::env::consts::OS {
+        "windows" => {
+            let powershell_script = r#"
+          $WshShell = New-Object -comObject WScript.Shell
+          $Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\IDF_Powershell.lnk")
+          $Shortcut.TargetPath = "powershell.exe"
+          $Shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -Command `"& {
+              # Set environment variable
+              `$env:IDF_PYTHON_ENV_PATH = 'C:\esp\v5.3\tools\python\'
+          
+              # Define a function
+              function Get-CustomGreeting {
+                  param(`$name)
+                  Write-Host `"Hello, `$name! Welcome to your custom PowerShell environment.`"
+              }
+          
+              # Define an alias
+              Set-Alias -Name 'greet' -Value 'Get-CustomGreeting'
+          
+              # Run your main script
+              . 'C:\esp\v5.3\tools\python\Scripts\Activate.ps1'
+          
+              Write-Host 'Setup complete. Custom environment is ready.' -ForegroundColor Green
+              Write-Host 'Try using the custom function with: Get-CustomGreeting YourName' -ForegroundColor Cyan
+              Write-Host 'Or use the alias with: greet YourName' -ForegroundColor Cyan
+          }`""
+          $Shortcut.WorkingDirectory = "$env:USERPROFILE\Desktop"
+          $Shortcut.IconLocation = "powershell.exe,0"
+          $Shortcut.Save()
+          "#;
+            // Write the PowerShell script to a temporary file
+            let temp_script_path = "temp_create_shortcut.ps1";
+            let mut file = File::create(temp_script_path)?;
+            file.write_all(powershell_script.as_bytes())?;
+
+            // Execute the PowerShell script
+            let output = Command::new("powershell")
+                .args(&["-ExecutionPolicy", "Bypass", "-File", temp_script_path])
+                .output();
+            match output {
+                Ok(output) => {
+                    if output.status.success() {
+                        info!("Desktop shortcut created successfully.");
+                    } else {
+                        error!(
+                            "Failed to create desktop shortcut: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                    }
+                }
+                Err(err) => {
+                    error!("Failed to execute PowerShell script: {}", err);
+                }
+            }
+            // Clean up the temporary file
+            std::fs::remove_file(temp_script_path)?;
+            Ok(())
+        }
+        _ => {
+            warn!("Creating desktop shortcut is only supported on Windows.");
+            return Ok(());
+        }
+    }
+}
 
 /// Retrieves the path to the local data directory for storing logs.
 ///

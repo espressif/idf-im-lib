@@ -55,7 +55,7 @@ pub fn get_prequisites() -> Vec<&'static str> {
             "dfu-util",
             "libusb-1.0-0",
         ],
-        "windows" => vec!["git"],
+        "windows" => vec!["git", "cmake"], // temporary added cmake back before solving why it does not install from tools.json
         "macos" => vec!["dfu-util"],
         _ => vec![],
     }
