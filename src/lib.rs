@@ -3,13 +3,14 @@ use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
 use log::{error, info, warn};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
+use tera::{Context, Tera};
 
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod system_dependencies;
-#[cfg(windows)]
-pub mod win_tools;
+// #[cfg(windows)]
+// pub mod win_tools;
 use std::{
     env,
     fs::{self, File},
@@ -18,68 +19,108 @@ use std::{
     process::Command,
 };
 
-pub fn create_desktop_shortcut() -> Result<(), std::io::Error> {
+pub fn run_powershell_script(script: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let mut child = Command::new("powershell")
+        .args(&["-Command", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(script.as_bytes())?;
+    }
+
+    let output = child.wait_with_output()?;
+
+    Ok(String::from_utf8(output.stdout)?)
+}
+
+/// Creates a desktop shortcut for the IDF tools using PowerShell on Windows.
+///
+/// # Parameters
+///
+/// * `idf_path` - A string representing the path to the ESP-IDF repository.
+/// * `idf_tools_path` - A string representing the path to the IDF tools directory.
+///
+/// # Return Value
+///
+/// * `Result<String, std::io::Error>` - On success, returns a string indicating the output of the PowerShell script.
+///   On error, returns an `std::io::Error` indicating the cause of the error.
+pub fn create_desktop_shortcut(
+    idf_path: &str,
+    idf_tools_path: &str,
+) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
         "windows" => {
-            let powershell_script = r#"
+            let powershell_script_template = r#"
           $WshShell = New-Object -comObject WScript.Shell
           $Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\IDF_Powershell.lnk")
           $Shortcut.TargetPath = "powershell.exe"
           $Shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -Command `"& {
-              # Set environment variable
-              `$env:IDF_PYTHON_ENV_PATH = 'C:\esp\v5.3\tools\python\'
+              `$env:IDF_PATH = '{{idf_path}}'
+              `$env:IDF_PYTHON_ENV_PATH = '{{idf_tools_path}}\python\'
           
               # Define a function
-              function Get-CustomGreeting {
-                  param(`$name)
-                  Write-Host `"Hello, `$name! Welcome to your custom PowerShell environment.`"
+              function idf.py {
+                {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\tools\idf.py @args
               }
           
-              # Define an alias
-              Set-Alias -Name 'greet' -Value 'Get-CustomGreeting'
-          
               # Run your main script
-              . 'C:\esp\v5.3\tools\python\Scripts\Activate.ps1'
+              . '{{idf_tools_path}}\python\Scripts\Activate.ps1'
           
               Write-Host 'Setup complete. Custom environment is ready.' -ForegroundColor Green
-              Write-Host 'Try using the custom function with: Get-CustomGreeting YourName' -ForegroundColor Cyan
-              Write-Host 'Or use the alias with: greet YourName' -ForegroundColor Cyan
+              Write-Host 'IDF environment has been set. You can now try using the custom env variables like IDF_PYTHON_ENV_PATH' -ForegroundColor Cyan
+              Write-Host 'Or use the alias with: idf.py build' -ForegroundColor Cyan
           }`""
           $Shortcut.WorkingDirectory = "$env:USERPROFILE\Desktop"
           $Shortcut.IconLocation = "powershell.exe,0"
           $Shortcut.Save()
           "#;
-            // Write the PowerShell script to a temporary file
-            let temp_script_path = "temp_create_shortcut.ps1";
-            let mut file = File::create(temp_script_path)?;
-            file.write_all(powershell_script.as_bytes())?;
-
-            // Execute the PowerShell script
-            let output = Command::new("powershell")
-                .args(&["-ExecutionPolicy", "Bypass", "-File", temp_script_path])
-                .output();
-            match output {
-                Ok(output) => {
-                    if output.status.success() {
-                        info!("Desktop shortcut created successfully.");
-                    } else {
-                        error!(
-                            "Failed to create desktop shortcut: {}",
-                            String::from_utf8_lossy(&output.stderr)
-                        );
-                    }
+            // Create a new Tera instance
+            let mut tera = Tera::default();
+            match tera.add_raw_template("powershell_script", powershell_script_template) {
+                Err(e) => {
+                    error!("Failed to add template: {}", e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to add template",
+                    ));
                 }
+                _ => {}
+            }
+            let mut context = Context::new();
+            context.insert("idf_path", idf_path);
+            context.insert("idf_tools_path", idf_tools_path);
+            let rendered = match tera.render("powershell_script", &context) {
+                Err(e) => {
+                    error!("Failed to render template: {}", e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to render template",
+                    ));
+                }
+                Ok(text) => text,
+            };
+            println!("----------");
+            println!("JEZEK: {}", rendered);
+            println!("----------");
+
+            let output = match run_powershell_script(&rendered) {
+                Ok(o) => o,
                 Err(err) => {
                     error!("Failed to execute PowerShell script: {}", err);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to execute PowerShell script",
+                    ));
                 }
-            }
-            // Clean up the temporary file
-            std::fs::remove_file(temp_script_path)?;
-            Ok(())
+            };
+
+            Ok(output)
         }
         _ => {
             warn!("Creating desktop shortcut is only supported on Windows.");
-            return Ok(());
+            return Ok("Unimplemented on this platform.".to_string());
         }
     }
 }
