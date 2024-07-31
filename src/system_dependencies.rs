@@ -45,6 +45,8 @@ pub fn get_prequisites() -> Vec<&'static str> {
     match std::env::consts::OS {
         "linux" => vec![
             "git",
+            "cmake",
+            "ninja",
             "wget",
             "flex",
             "bison",
@@ -55,8 +57,8 @@ pub fn get_prequisites() -> Vec<&'static str> {
             "dfu-util",
             "libusb-1.0-0",
         ],
-        "windows" => vec!["git", "cmake"], // temporary added cmake back before solving why it does not install from tools.json
-        "macos" => vec!["dfu-util"],
+        "windows" => vec!["git", "cmake", "ninja"], // temporary added cmake back before solving why it does not install from tools.json
+        "macos" => vec!["dfu-util", "cmake", "ninja"],
         _ => vec![],
     }
 }

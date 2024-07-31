@@ -35,6 +35,98 @@ pub fn run_powershell_script(script: &str) -> Result<String, Box<dyn std::error:
     Ok(String::from_utf8(output.stdout)?)
 }
 
+fn create_powershell_profile(
+    profile_path: &str,
+    idf_path: &str,
+    idf_tools_path: &str,
+) -> Result<String, std::io::Error> {
+    let profile_template = r#"
+# Set environment variables
+$env:IDF_PATH = '{{idf_path}}'
+$env:IDF_TOOLS_PATH = '{{idf_tools_path}}'
+$env:IDF_PYTHON_ENV_PATH = '{{idf_tools_path}}\python\'
+
+# Define the Invoke-idfpy function
+function global:Invoke-idfpy {
+    {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\tools\idf.py @args
+}
+
+function global:esptool.py {
+  {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\components\esptool_py\esptool\esptool.py @args
+}
+
+function global:espefuse.py {
+  {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\components\esptool_py\esptool\espefuse.py @args
+}
+
+function global:espsecure.py {
+  {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\components\esptool_py\esptool\espsecure.py @args
+}
+
+function global:otatool.py {
+  {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\components\app_update\otatool.py @args
+}
+
+function global:parttool.py {
+  {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\components\partition_table\parttool.py @args
+}
+
+# Create an alias for the function
+New-Alias -Name idf.py -Value Invoke-idfpy -Force -Scope Global
+
+# Activate your Python environment
+. 'C:\esp\v5.3\tools\python\Scripts\Activate.ps1'
+
+# Display setup information
+Write-Host 'IDF PowerShell Environment' -ForegroundColor Green
+Write-Host '-------------------------' -ForegroundColor Green
+Write-Host 'Environment variables set:' -ForegroundColor Cyan
+Write-Host "IDF_PATH: $env:IDF_PATH" -ForegroundColor Yellow
+Write-Host "IDF_PYTHON_ENV_PATH: $env:IDF_PYTHON_ENV_PATH" -ForegroundColor Yellow
+Write-Host ''
+Write-Host 'Custom commands available:' -ForegroundColor Cyan
+Write-Host 'idf.py - Use this to run IDF commands (e.g., idf.py build)' -ForegroundColor Yellow
+Write-Host 'esptool.py' -ForegroundColor Yellow
+Write-Host 'espefuse.py' -ForegroundColor Yellow
+Write-Host 'espsecure.py' -ForegroundColor Yellow
+Write-Host 'otatool.py' -ForegroundColor Yellow
+Write-Host 'parttool.py' -ForegroundColor Yellow
+Write-Host ''
+Write-Host 'Python environment activated.' -ForegroundColor Cyan
+Write-Host 'You can now use IDF commands and Python tools.' -ForegroundColor Cyan
+"#;
+
+    let mut tera = Tera::default();
+    match tera.add_raw_template("powershell_profile", profile_template) {
+        Err(e) => {
+            error!("Failed to add template: {}", e);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to add template",
+            ));
+        }
+        _ => {}
+    }
+    ensure_path(profile_path).expect("Unable to create directory");
+    let mut context = Context::new();
+    context.insert("idf_path", idf_path);
+    context.insert("idf_tools_path", idf_tools_path);
+    let rendered = match tera.render("powershell_profile", &context) {
+        Err(e) => {
+            error!("Failed to render template: {}", e);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to render template",
+            ));
+        }
+        Ok(text) => text,
+    };
+    let mut filename = PathBuf::from(profile_path);
+    filename.push("Microsoft.PowerShell_profile.ps1");
+    fs::write(&filename, rendered).expect("Unable to write file");
+    Ok(filename.display().to_string())
+}
+
 /// Creates a desktop shortcut for the IDF tools using PowerShell on Windows.
 ///
 /// # Parameters
@@ -47,34 +139,29 @@ pub fn run_powershell_script(script: &str) -> Result<String, Box<dyn std::error:
 /// * `Result<String, std::io::Error>` - On success, returns a string indicating the output of the PowerShell script.
 ///   On error, returns an `std::io::Error` indicating the cause of the error.
 pub fn create_desktop_shortcut(
+    profile_path: &str,
     idf_path: &str,
     idf_tools_path: &str,
 ) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
         "windows" => {
+            let filename = match create_powershell_profile(profile_path, idf_path, idf_tools_path) {
+                Ok(filename) => filename,
+                Err(err) => {
+                    error!("Failed to create PowerShell profile: {}", err);
+                    return Err(err);
+                }
+            };
             let powershell_script_template = r#"
-          $WshShell = New-Object -comObject WScript.Shell
-          $Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\IDF_Powershell.lnk")
-          $Shortcut.TargetPath = "powershell.exe"
-          $Shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -Command `"& {
-              `$env:IDF_PATH = '{{idf_path}}'
-              `$env:IDF_PYTHON_ENV_PATH = '{{idf_tools_path}}\python\'
-          
-              # Define a function
-              function idf.py {
-                {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\tools\idf.py @args
-              }
-          
-              # Run your main script
-              . '{{idf_tools_path}}\python\Scripts\Activate.ps1'
-          
-              Write-Host 'Setup complete. Custom environment is ready.' -ForegroundColor Green
-              Write-Host 'IDF environment has been set. You can now try using the custom env variables like IDF_PYTHON_ENV_PATH' -ForegroundColor Cyan
-              Write-Host 'Or use the alias with: idf.py build' -ForegroundColor Cyan
-          }`""
-          $Shortcut.WorkingDirectory = "$env:USERPROFILE\Desktop"
-          $Shortcut.IconLocation = "powershell.exe,0"
-          $Shortcut.Save()
+$WshShell = New-Object -comObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\IDF_Powershell.lnk")
+$Shortcut.TargetPath = "powershell.exe"
+$Shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `"& {. '{{custom_profile_filename}}'}`""
+$Shortcut.WorkingDirectory = "$env:USERPROFILE\Desktop"
+$Shortcut.IconLocation = "powershell.exe,0"
+$Shortcut.Save()
+
+Write-Host "Shortcut created on the desktop: IDF_Powershell.lnk" -ForegroundColor Green
           "#;
             // Create a new Tera instance
             let mut tera = Tera::default();
@@ -89,8 +176,7 @@ pub fn create_desktop_shortcut(
                 _ => {}
             }
             let mut context = Context::new();
-            context.insert("idf_path", idf_path);
-            context.insert("idf_tools_path", idf_tools_path);
+            context.insert("custom_profile_filename", &filename);
             let rendered = match tera.render("powershell_script", &context) {
                 Err(e) => {
                     error!("Failed to render template: {}", e);
@@ -101,9 +187,6 @@ pub fn create_desktop_shortcut(
                 }
                 Ok(text) => text,
             };
-            println!("----------");
-            println!("JEZEK: {}", rendered);
-            println!("----------");
 
             let output = match run_powershell_script(&rendered) {
                 Ok(o) => o,
