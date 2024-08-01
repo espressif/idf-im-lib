@@ -1,20 +1,171 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
 use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
+use log::{error, info, warn};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
+use tera::{Context, Tera};
 
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod system_dependencies;
-#[cfg(windows)]
-pub mod win_tools;
+// #[cfg(windows)]
+// pub mod win_tools;
 use std::{
     env,
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
+    process::Command,
 };
+
+/// Runs a PowerShell script and captures its output.
+///
+/// # Parameters
+///
+/// * `script`: A string containing the PowerShell script to be executed.
+///
+/// # Returns
+///
+/// * `Ok(String)`: If the PowerShell script executes successfully, the function returns a `Result` containing the script's output as a string.
+/// * `Err(Box<dyn std::error::Error>)`: If an error occurs during the execution of the PowerShell script, the function returns a `Result` containing the error.
+pub fn run_powershell_script(script: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let mut child = Command::new("powershell")
+        .args(&["-Command", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(script.as_bytes())?;
+    }
+
+    let output = child.wait_with_output()?;
+
+    Ok(String::from_utf8(output.stdout)?)
+}
+
+/// Creates a PowerShell profile script for the ESP-IDF tools.
+///
+/// # Parameters
+///
+/// * `profile_path` - A string representing the path where the PowerShell profile script should be created.
+/// * `idf_path` - A string representing the path to the ESP-IDF repository.
+/// * `idf_tools_path` - A string representing the path to the ESP-IDF tools directory.
+///
+/// # Returns
+///
+/// * `Result<String, std::io::Error>` - On success, returns the path to the created PowerShell profile script.
+///   On error, returns an `std::io::Error` indicating the cause of the error.
+fn create_powershell_profile(
+    profile_path: &str,
+    idf_path: &str,
+    idf_tools_path: &str,
+) -> Result<String, std::io::Error> {
+    let profile_template = include_str!("./../powershell_scripts/idf_tools_profile_template.ps1");
+
+    let mut tera = Tera::default();
+    match tera.add_raw_template("powershell_profile", profile_template) {
+        Err(e) => {
+            error!("Failed to add template: {}", e);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to add template",
+            ));
+        }
+        _ => {}
+    }
+    ensure_path(profile_path).expect("Unable to create directory");
+    let mut context = Context::new();
+    context.insert("idf_path", idf_path);
+    context.insert("idf_tools_path", idf_tools_path);
+    let rendered = match tera.render("powershell_profile", &context) {
+        Err(e) => {
+            error!("Failed to render template: {}", e);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to render template",
+            ));
+        }
+        Ok(text) => text,
+    };
+    let mut filename = PathBuf::from(profile_path);
+    filename.push("Microsoft.PowerShell_profile.ps1");
+    fs::write(&filename, rendered).expect("Unable to write file");
+    Ok(filename.display().to_string())
+}
+
+/// Creates a desktop shortcut for the IDF tools using PowerShell on Windows.
+///
+/// # Parameters
+///
+/// * `idf_path` - A string representing the path to the ESP-IDF repository.
+/// * `idf_tools_path` - A string representing the path to the IDF tools directory.
+///
+/// # Return Value
+///
+/// * `Result<String, std::io::Error>` - On success, returns a string indicating the output of the PowerShell script.
+///   On error, returns an `std::io::Error` indicating the cause of the error.
+pub fn create_desktop_shortcut(
+    profile_path: &str,
+    idf_path: &str,
+    idf_tools_path: &str,
+) -> Result<String, std::io::Error> {
+    match std::env::consts::OS {
+        "windows" => {
+            let filename = match create_powershell_profile(profile_path, idf_path, idf_tools_path) {
+                Ok(filename) => filename,
+                Err(err) => {
+                    error!("Failed to create PowerShell profile: {}", err);
+                    return Err(err);
+                }
+            };
+            let powershell_script_template =
+                include_str!("./../powershell_scripts/create_desktop_shortcut_template.ps1");
+            // Create a new Tera instance
+            let mut tera = Tera::default();
+            match tera.add_raw_template("powershell_script", powershell_script_template) {
+                Err(e) => {
+                    error!("Failed to add template: {}", e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to add template",
+                    ));
+                }
+                _ => {}
+            }
+            let mut context = Context::new();
+            context.insert("custom_profile_filename", &filename);
+            let rendered = match tera.render("powershell_script", &context) {
+                Err(e) => {
+                    error!("Failed to render template: {}", e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to render template",
+                    ));
+                }
+                Ok(text) => text,
+            };
+
+            let output = match run_powershell_script(&rendered) {
+                Ok(o) => o,
+                Err(err) => {
+                    error!("Failed to execute PowerShell script: {}", err);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to execute PowerShell script",
+                    ));
+                }
+            };
+
+            Ok(output)
+        }
+        _ => {
+            warn!("Creating desktop shortcut is only supported on Windows.");
+            return Ok("Unimplemented on this platform.".to_string());
+        }
+    }
+}
 
 /// Retrieves the path to the local data directory for storing logs.
 ///

@@ -45,6 +45,8 @@ pub fn get_prequisites() -> Vec<&'static str> {
     match std::env::consts::OS {
         "linux" => vec![
             "git",
+            "cmake",
+            "ninja",
             "wget",
             "flex",
             "bison",
@@ -55,8 +57,8 @@ pub fn get_prequisites() -> Vec<&'static str> {
             "dfu-util",
             "libusb-1.0-0",
         ],
-        "windows" => vec!["git"],
-        "macos" => vec!["dfu-util"],
+        "windows" => vec!["git", "cmake", "ninja"], // temporary added cmake back before solving why it does not install from tools.json
+        "macos" => vec!["dfu-util", "cmake", "ninja"],
         _ => vec![],
     }
 }
@@ -257,8 +259,8 @@ fn install_scoop_package_manager() -> Result<(), String> {
                 Ok(o) => {
                     trace!("{}", String::from_utf8(o.stdout).unwrap());
                     debug!("Successfully installed Scoop package manager. Adding to PATH");
-                    #[cfg(windows)]
-                    crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
+                    // #[cfg(windows)]
+                    // crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
                     Ok(())
                 }
                 Err(e) => Err(e.to_string()),
@@ -292,8 +294,8 @@ pub fn ensure_scoop_package_manager() -> Result<(), String> {
                     return Err(String::from("Could not get scoop path"));
                 }
             };
-            #[cfg(windows)]
-            crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
+            // #[cfg(windows)]
+            // crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
             // add_to_windows_path(&path_with_scoop).unwrap();
             add_to_path(&path_with_scoop).unwrap();
             let output = std::process::Command::new("powershell")
