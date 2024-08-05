@@ -1,3 +1,4 @@
+use log::error;
 use serde_derive::Deserialize;
 use std::collections::HashMap;
 
@@ -121,4 +122,41 @@ pub async fn get_idf_name_by_target(target: &String) -> Vec<String> {
         }
     }
     selected_versions
+}
+
+/// Retrieves the names of all valid IDF versions.
+///
+/// This function fetches the IDF versions from the official website, filters out invalid versions,
+/// and returns a vector of valid IDF version names.
+///
+/// # Returns
+///
+/// * A vector of strings containing the names of valid IDF versions.
+///   If there is an error fetching the IDF versions or processing them, an empty vector is returned.
+///
+/// # Errors
+///
+/// * If there is an error fetching the IDF versions or processing them, an error message is logged.
+pub async fn get_idf_names() -> Vec<String> {
+    let versions = get_idf_versions().await;
+    match versions {
+        Ok(releases) => {
+            let mut names = vec![];
+            for version in &releases.VERSIONS {
+                if version.end_of_life
+                    || version.pre_release
+                    || version.old
+                    || version.name == "latest"
+                {
+                    continue;
+                }
+                names.push(version.name.clone());
+            }
+            names
+        }
+        Err(err) => {
+            error!("{}", err);
+            vec![]
+        }
+    }
 }

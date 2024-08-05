@@ -86,20 +86,27 @@ pub fn read_and_parse_tools_file(path: &str) -> Result<ToolsFile, Box<dyn std::e
 ///
 /// # Arguments
 ///
-/// * `tools` - A vector of `Tool` instances to be filtered.
-/// * `target` - A reference to a string representing the target platform (esp32 esp32c3)
+/// * `tools` - A vector of `Tool` instances to be filtered. Each `Tool` contains information about a tool,
+///   such as its supported targets and other relevant details.
+///
+/// * `target` - A reference to a vector of strings representing the target platforms. The function will
+///   filter the tools based on whether they support any of the specified target platforms.
 ///
 /// # Returns
 ///
-/// * A vector of `Tool` instances that match the given target platform.
-///   If no matching tools are found, an empty vector is returned.
+/// * A vector of `Tool` instances that match at least one of the given target platforms. If no matching tools
+///   are found, an empty vector is returned.
 ///
-pub fn filter_tools_by_target(tools: Vec<Tool>, target: &String) -> Vec<Tool> {
+pub fn filter_tools_by_target(tools: Vec<Tool>, target: &Vec<String>) -> Vec<Tool> {
     tools
         .into_iter()
         .filter(|tool| {
+            if target.contains(&"all".to_string()) {
+                return true;
+            }
             if let Some(supported_targets) = &tool.supported_targets {
-                supported_targets.contains(target) || supported_targets.contains(&"all".to_string())
+                target.iter().any(|t| supported_targets.contains(t))
+                    || supported_targets.contains(&"all".to_string())
             } else {
                 true
             }
