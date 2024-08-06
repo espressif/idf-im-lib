@@ -109,6 +109,7 @@ fn create_powershell_profile(
 pub fn create_desktop_shortcut(
     profile_path: &str,
     idf_path: &str,
+    name: &str,
     idf_tools_path: &str,
 ) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
@@ -136,6 +137,7 @@ pub fn create_desktop_shortcut(
             }
             let mut context = Context::new();
             context.insert("custom_profile_filename", &filename);
+            context.insert("name", &name);
             let rendered = match tera.render("powershell_script", &context) {
                 Err(e) => {
                     error!("Failed to render template: {}", e);
