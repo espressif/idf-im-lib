@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::env;
 
 use log::{debug, trace};
 
@@ -299,7 +299,7 @@ pub fn ensure_scoop_package_manager() -> Result<(), String> {
             // add_to_windows_path(&path_with_scoop).unwrap();
             add_to_path(&path_with_scoop).unwrap();
             let output = std::process::Command::new("powershell")
-                .args(&["-Command", "scoop", "--version"])
+                .args(["-Command", "scoop", "--version"])
                 .output();
             match output {
                 Ok(o) => {
@@ -352,7 +352,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
                             }
-                            Err(e) => panic!("Failed to install {}: {}", package, e.to_string()),
+                            Err(e) => panic!("Failed to install {}: {}", package, e),
                         }
                     }
                 }
@@ -368,7 +368,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
                             }
-                            Err(e) => panic!("Failed to install {}: {}", package, e.to_string()),
+                            Err(e) => panic!("Failed to install {}: {}", package, e),
                         }
                     }
                 }
@@ -384,7 +384,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
                             }
-                            Err(e) => panic!("Failed to install {}: {}", package, e.to_string()),
+                            Err(e) => panic!("Failed to install {}: {}", package, e),
                         }
                     }
                 }
@@ -400,7 +400,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
                             }
-                            Err(e) => panic!("Failed to install {}: {}", package, e.to_string()),
+                            Err(e) => panic!("Failed to install {}: {}", package, e),
                         }
                     }
                 }
@@ -422,7 +422,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                     Ok(_) => {
                         debug!("Successfully installed {}", package);
                     }
-                    Err(e) => panic!("Failed to install {}: {}", package, e.to_string()),
+                    Err(e) => panic!("Failed to install {}: {}", package, e),
                 }
             }
         }
@@ -438,14 +438,14 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 };
                 debug!("Installing {} with scoop: {}", package, path_with_scoop);
                 let output = std::process::Command::new("powershell")
-                    .args(&["-Command", "scoop", "install", &package])
+                    .args(["-Command", "scoop", "install", &package])
                     .output();
                 match output {
                     Ok(o) => {
                         trace!("{}", String::from_utf8(o.stdout).unwrap());
                         debug!("Successfully installed {:?}", package);
                     }
-                    Err(e) => panic!("Failed to install {}: {}", package, e.to_string()),
+                    Err(e) => panic!("Failed to install {}: {}", package, e),
                 }
             }
         }
@@ -473,7 +473,7 @@ fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
     let binding = env::var_os("PATH").unwrap_or_default();
     let paths = binding.to_str().unwrap();
 
-    if !paths.contains(&new_path) {
+    if !paths.contains(new_path) {
         let new_path_string = match std::env::consts::OS {
             "windows" => format!("{};{}", new_path, paths),
             _ => format!("{}:{}", new_path, paths),

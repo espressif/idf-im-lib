@@ -4,6 +4,19 @@ use std::env;
 use std::process::ExitCode;
 use vm::{builtins::PyStrRef, Interpreter};
 
+/// Runs a Python script from a specified file with optional arguments and environment variables.
+///
+/// # Parameters
+///
+/// * `path` - A reference to a string representing the path to the Python script file.
+/// * `args` - An optional reference to a string representing the arguments to be passed to the Python script.
+/// * `python` - An optional reference to a string representing the Python interpreter to be used.
+/// * `envs` - An optional reference to a vector of tuples representing environment variables to be set for the Python script.
+///
+/// # Returns
+///
+/// * `Result<String, String>` - On success, returns a `Result` containing the standard output of the Python script as a string.
+///   On error, returns a `Result` containing the standard error of the Python script as a string.
 pub fn run_python_script_from_file(
     path: &str,
     args: Option<&str>,
@@ -45,6 +58,18 @@ pub fn run_python_script_from_file(
     }
 }
 
+/// Executes a Python script using the provided Python interpreter and returns the script's output.
+///
+/// # Parameters
+///
+/// * `script` - A reference to a string representing the Python script to be executed.
+/// * `python` - An optional reference to a string representing the Python interpreter to be used.
+///   If `None`, the function will default to using "python3".
+///
+/// # Returns
+///
+/// * `Result<String, String>` - On success, returns a `Result` containing the standard output of the Python script as a string.
+///   On error, returns a `Result` containing the standard error of the Python script as a string.
 pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, String> {
     let output = std::process::Command::new(python.unwrap_or("python3"))
         .arg("-c")
@@ -62,6 +87,20 @@ pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, S
     }
 }
 
+/// Retrieves the platform definition by the Python interpreter.
+///
+/// This function executes a Python script that uses the `platform` module to determine the system and machine
+/// details of the Python interpreter. The platform definition is formatted as "system-machine".
+///
+/// # Parameters
+///
+/// * `python` - An optional reference to a string representing the Python interpreter to be used.
+///   If `None`, the function will default to using "python3".
+///
+/// # Returns
+///
+/// * `String` - The platform definition of the Python interpreter. If the Python script execution fails,
+///   the function returns the error message as a string.
 pub fn get_python_platform_definition(python: Option<&str>) -> String {
     match run_python_script(
         "import platform; print(f'{platform.system()}-{platform.machine()}')",
@@ -72,6 +111,22 @@ pub fn get_python_platform_definition(python: Option<&str>) -> String {
     }
 }
 
+/// Performs a series of sanity checks for the Python interpreter.
+///
+/// This function executes various Python scripts and checks for the availability of essential Python modules,
+/// such as pip, venv, and the standard library. It also verifies the functionality of the ctypes module.
+///
+/// # Parameters
+///
+/// * `python` - An optional reference to a string representing the Python interpreter to be used.
+///   If `None`, the function will default to using "python3".
+///
+/// # Returns
+///
+/// * `Vec<Result<String, String>>` - A vector of results. Each result represents the output or error message
+///   of a specific Python script execution. If the script execution is successful, the result will be `Ok`
+///   containing the standard output as a string. If the script execution fails, the result will be `Err`
+///   containing the standard error as a string.
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
     let mut outputs = Vec::new();
     // check pip
@@ -90,6 +145,7 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         }
         Err(e) => outputs.push(Err(e.to_string())),
     }
+    // check venv
     let output_2 = std::process::Command::new(python.unwrap_or("python3"))
         .arg("-m")
         .arg("venv")
@@ -107,13 +163,13 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
     }
     // check standard library
     let script = include_str!("./../python_scripts/sanity_check/import_standard_library.py");
-    outputs.push(run_python_script(&script, python));
+    outputs.push(run_python_script(script, python));
     // check ctypes
     let script = include_str!("./../python_scripts/sanity_check/ctypes_check.py");
-    outputs.push(run_python_script(&script, python));
+    outputs.push(run_python_script(script, python));
     // check https
     let script = include_str!("./../python_scripts/sanity_check/import_standard_library.py");
-    outputs.push(run_python_script(&script, python));
+    outputs.push(run_python_script(script, python));
     outputs
 }
 
@@ -122,9 +178,7 @@ pub fn run_python_script_with_rustpython(script: &str) -> String {
         let scope = vm.new_scope_with_builtins();
         let code_opbject = vm
             .compile(script, vm::compiler::Mode::Exec, "<embeded>".to_owned())
-            .map_err(|err| {
-                return format!("error: {:?}", err);
-            })
+            .map_err(|err| format!("error: {:?}", err))
             .unwrap();
         let output = vm.run_code_obj(code_opbject, scope).unwrap();
         format!("output: {:?}", output)
