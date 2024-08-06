@@ -1121,8 +1121,6 @@ dependencies = [
  "sys-info",
  "tera",
  "tokio",
- "winapi",
- "winreg 0.52.0",
 ]
 
 [[package]]

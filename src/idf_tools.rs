@@ -97,7 +97,7 @@ pub fn read_and_parse_tools_file(path: &str) -> Result<ToolsFile, Box<dyn std::e
 /// * A vector of `Tool` instances that match at least one of the given target platforms. If no matching tools
 ///   are found, an empty vector is returned.
 ///
-pub fn filter_tools_by_target(tools: Vec<Tool>, target: &Vec<String>) -> Vec<Tool> {
+pub fn filter_tools_by_target(tools: Vec<Tool>, target: &[String]) -> Vec<Tool> {
     tools
         .into_iter()
         .filter(|tool| {
@@ -115,6 +115,22 @@ pub fn filter_tools_by_target(tools: Vec<Tool>, target: &Vec<String>) -> Vec<Too
 }
 
 // TODO: maybe get this by direct calling the idf_tool.py so the hashtable is not duplicate
+/// Retrieves the platform identification based on the Python platform definition.
+///
+/// This function maps the Python platform definition to a corresponding platform identifier.
+/// It uses a predefined hashmap to perform the mapping. If the Python platform definition is not found in the hashmap,
+/// an error is returned.
+///
+/// # Parameters
+///
+/// * None
+///
+/// # Returns
+///
+/// * `Result<String, String>`:
+///   - `Ok(String)`: If the platform identification is successfully retrieved.
+///   - `Err(String)`: If the Python platform definition is not supported.
+///
 pub fn get_platform_identification() -> Result<String, String> {
     let mut platform_from_name = HashMap::new();
 

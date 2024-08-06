@@ -1,6 +1,6 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
 use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
-use log::{error, info, warn};
+use log::{error, warn};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
@@ -9,8 +9,6 @@ pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod system_dependencies;
-// #[cfg(windows)]
-// pub mod win_tools;
 use std::{
     env,
     fs::{self, File},
@@ -31,7 +29,7 @@ use std::{
 /// * `Err(Box<dyn std::error::Error>)`: If an error occurs during the execution of the PowerShell script, the function returns a `Result` containing the error.
 pub fn run_powershell_script(script: &str) -> Result<String, Box<dyn std::error::Error>> {
     let mut child = Command::new("powershell")
-        .args(&["-Command", "-"])
+        .args(["-Command", "-"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()?;
@@ -65,15 +63,12 @@ fn create_powershell_profile(
     let profile_template = include_str!("./../powershell_scripts/idf_tools_profile_template.ps1");
 
     let mut tera = Tera::default();
-    match tera.add_raw_template("powershell_profile", profile_template) {
-        Err(e) => {
-            error!("Failed to add template: {}", e);
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failed to add template",
-            ));
-        }
-        _ => {}
+    if let Err(e) = tera.add_raw_template("powershell_profile", profile_template) {
+        error!("Failed to add template: {}", e);
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to add template",
+        ));
     }
     ensure_path(profile_path).expect("Unable to create directory");
     let mut context = Context::new();
@@ -125,15 +120,12 @@ pub fn create_desktop_shortcut(
                 include_str!("./../powershell_scripts/create_desktop_shortcut_template.ps1");
             // Create a new Tera instance
             let mut tera = Tera::default();
-            match tera.add_raw_template("powershell_script", powershell_script_template) {
-                Err(e) => {
-                    error!("Failed to add template: {}", e);
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Failed to add template",
-                    ));
-                }
-                _ => {}
+            if let Err(e) = tera.add_raw_template("powershell_script", powershell_script_template) {
+                error!("Failed to add template: {}", e);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Failed to add template",
+                ));
             }
             let mut context = Context::new();
             context.insert("custom_profile_filename", &filename);
@@ -164,7 +156,7 @@ pub fn create_desktop_shortcut(
         }
         _ => {
             warn!("Creating desktop shortcut is only supported on Windows.");
-            return Ok("Unimplemented on this platform.".to_string());
+            Ok("Unimplemented on this platform.".to_string())
         }
     }
 }
@@ -249,9 +241,11 @@ pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<
 /// # Example
 ///
 /// ```rust
+/// use std::io;
 /// use std::io::Write;
+/// use idf_im_lib::download_file;
 ///
-/// async fn download_progress_callback(downloaded: u64, total: u64) {
+/// fn download_progress_callback(downloaded: u64, total: u64) {
 ///     let percentage = (downloaded as f64 / total as f64) * 100.0;
 ///     print!("\rDownloading... {:.2}%", percentage);
 ///     io::stdout().flush().unwrap();
@@ -333,6 +327,7 @@ pub async fn download_file(
 ///
 /// ```rust
 /// use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
+/// use idf_im_lib::decompress_archive;
 ///
 /// fn main() {
 ///     let archive_path = "/path/to/archive.zip";
@@ -382,6 +377,8 @@ pub fn ensure_path(directory_path: &str) -> std::io::Result<()> {
 /// # Example
 ///
 /// ```rust
+/// use idf_im_lib::add_path_to_path;
+///
 /// add_path_to_path("/usr/local/bin");
 /// ```
 pub fn add_path_to_path(directory_path: &str) {
@@ -520,40 +517,21 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
     }
 }
 
-/// Retrieves the ESP-IDF repository by cloning it from GitHub using a specific tag.
+/// Clones the ESP-IDF repository from the specified URL, tag, or branch,
+/// using the provided progress function for reporting cloning progress.
 ///
-/// # Arguments
+/// # Parameters
 ///
-/// * `custom_path` - A string representing the local path where the ESP-IDF repository should be cloned.
-/// * `tag` - A string representing the tag of the ESP-IDF repository to clone.
-/// * `progress_function` - A closure or function that will be called to report progress during the cloning process.
+/// * `custom_path`: A string representing the local path where the repository should be cloned.
+/// * `tag`: An optional string representing the tag to checkout after cloning. If `None`, the repository will be cloned at the specified branch.
+/// * `progress_function`: A closure or function that will be called to report progress during the cloning process.
+/// * `mirror`: An optional string representing the URL of a mirror to use for cloning the repository. If `None`, the default GitHub URL will be used.
+/// * `group_name`: An optional string representing the group name for the repository. If `None`, the default group name "espressif" will be used.
 ///
 /// # Returns
 ///
-/// * `Ok(String)` if the cloning process is successful and the path to the cloned repository is returned.
-/// * `Err(git2::Error)` if an error occurs during the cloning process.
-///
-/// # Example
-///
-/// ```rust
-/// use git2::Progress;
-///
-/// fn progress_callback(progress: Progress) -> bool {
-///     // Implement progress callback logic here
-///     // Return true to continue the cloning process, or false to cancel it
-///     true
-/// }
-///
-/// fn main() {
-///     let custom_path = "/path/to/esp-idf";
-///     let tag = "v4.3";
-///
-///     match get_esp_idf_by_tag_name(custom_path, tag, progress_callback) {
-///         Ok(repo_path) => println!("ESP-IDF repository cloned successfully at: {}", repo_path),
-///         Err(e) => eprintln!("Error during cloning: {}", e),
-///     }
-/// }
-/// ```
+/// * `Result<String, git2::Error>`: On success, returns a `Result` containing the path of the cloned repository as a string.
+///   On error, returns a `Result` containing a `git2::Error` indicating the cause of the error.
 pub fn get_esp_idf_by_tag_name(
     custom_path: &str,
     tag: Option<&str>,
@@ -561,10 +539,7 @@ pub fn get_esp_idf_by_tag_name(
     mirror: Option<&str>,
     group_name: Option<&str>,
 ) -> Result<String, git2::Error> {
-    let group = match group_name {
-        Some(group) => group,
-        None => "espressif",
-    };
+    let group = group_name.unwrap_or("espressif");
     let url = match mirror {
         Some(url) => {
             format!("https://github.com/{}/esp-idf.git", group).replace("https://github.com", url)

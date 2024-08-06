@@ -38,9 +38,23 @@ pub struct Releases {
 
 // TODO: handle the possibility of multiple downloads
 pub async fn get_idf_versions() -> Result<Releases, String> {
-    return Ok(download_idf_versions().await.unwrap());
+    Ok(download_idf_versions().await.unwrap())
 }
 
+/// Retrieves the available IDF targets from the official website.
+///
+/// This function fetches the IDF versions from the official website, extracts the available targets,
+/// and returns a vector of these target names.
+///
+/// # Returns
+///
+/// * A `Result` containing a vector of strings representing the available IDF targets if successful.
+///   If there is an error fetching the IDF versions or processing them, a `String` containing the error message is returned.
+///
+/// # Errors
+///
+/// * If there is an error fetching the IDF versions or processing them, a `String` containing the error message is returned.
+///
 pub async fn get_avalible_targets() -> Result<Vec<String>, String> {
     let versions = get_idf_versions().await;
     match versions {
@@ -49,7 +63,7 @@ pub async fn get_avalible_targets() -> Result<Vec<String>, String> {
             for target in &releases.IDF_TARGETS {
                 avalible_targets.push(target.value.clone());
             }
-            return Ok(avalible_targets);
+            Ok(avalible_targets)
         }
         Err(err) => Err(err),
     }
@@ -79,6 +93,20 @@ pub async fn download_idf_versions() -> Result<Releases, Box<dyn std::error::Err
     Ok(versions)
 }
 
+/// This function groups the IDF versions by their supported targets.
+///
+/// # Arguments
+///
+/// * `versions` - A reference to a `Releases` struct containing the IDF versions and targets.
+///
+/// # Returns
+///
+/// * A HashMap where the keys are the target names (as strings) and the values are vectors of `Version` structs.
+///   Each vector contains the IDF versions that support the corresponding target.
+///
+/// # Errors
+///
+/// * This function does not return any errors.
 pub fn get_idf_versions_by_target(versions: &Releases) -> HashMap<String, Vec<Version>> {
     let mut versions_by_target = HashMap::new();
 
