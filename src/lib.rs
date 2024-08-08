@@ -9,13 +9,90 @@ pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod system_dependencies;
+use std::fs::{set_permissions, File};
 use std::{
     env,
-    fs::{self, File},
+    fs::{self},
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
+
+/// Creates an executable shell script with the given content and file path.
+///
+/// # Parameters
+///
+/// * `file_path`: A string representing the path where the shell script should be created.
+/// * `content`: A string representing the content of the shell script.
+///
+/// # Return
+///
+/// * `Result<(), String>`: On success, returns `Ok(())`. On error, returns `Err(String)` containing the error message.
+fn create_executable_shell_script(file_path: &str, content: &str) -> Result<(), String> {
+    if std::env::consts::OS == "windows" {
+        unimplemented!("create_executable_shell_script not implemented for Windows")
+    } else {
+        // Create and write to the file
+        let mut file = File::create(file_path).map_err(|e| e.to_string())?;
+        file.write_all(content.as_bytes())
+            .map_err(|e| e.to_string())?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            // Set the file as executable (mode 0o755)
+            let permissions = PermissionsExt::from_mode(0o755);
+            set_permissions(Path::new(file_path), permissions).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+/// Creates an activation shell script for the ESP-IDF toolchain.
+///
+/// # Parameters
+///
+/// * `file_path`: A string representing the path where the activation script should be created.
+/// * `idf_path`: A string representing the path to the ESP-IDF installation.
+/// * `idf_tools_path`: A string representing the path to the ESP-IDF tools installation.
+/// * `idf_version`: A string representing the version of the ESP-IDF toolchain.
+/// * `export_paths`: A vector of strings representing additional paths to be added to the shell's PATH environment variable.
+///
+/// # Return
+///
+/// * `Result<(), String>`: On success, returns `Ok(())`. On error, returns `Err(String)` containing the error message.
+pub fn create_activation_shell_script(
+    file_path: &str,
+    idf_path: &str,
+    idf_tools_path: &str,
+    idf_version: &str,
+    export_paths: Vec<String>,
+) -> Result<(), String> {
+    ensure_path(file_path).map_err(|e| e.to_string())?;
+    let mut filename = PathBuf::from(file_path);
+    filename.push(format!("activate_idf_{}.sh", idf_version));
+    let template = include_str!("./../bash_scripts/activate_idf_template.sh");
+    let mut tera = Tera::default();
+    if let Err(e) = tera.add_raw_template("activate_idf_template", template) {
+        error!("Failed to add template: {}", e);
+        return Err(e.to_string());
+    }
+    let mut context = Context::new();
+    context.insert("idf_path", idf_path);
+    context.insert("idf_tools_path", idf_tools_path);
+    context.insert("idf_version", idf_version);
+    context.insert("addition_to_path", &export_paths.join(":"));
+    let rendered = match tera.render("activate_idf_template", &context) {
+        Err(e) => {
+            error!("Failed to render template: {}", e);
+            return Err(e.to_string());
+        }
+        Ok(text) => text,
+    };
+
+    create_executable_shell_script(filename.to_str().unwrap(), &rendered)?;
+    Ok(())
+}
 
 /// Runs a PowerShell script and captures its output.
 ///
@@ -59,6 +136,7 @@ fn create_powershell_profile(
     profile_path: &str,
     idf_path: &str,
     idf_tools_path: &str,
+    export_paths: Vec<String>,
 ) -> Result<String, std::io::Error> {
     let profile_template = include_str!("./../powershell_scripts/idf_tools_profile_template.ps1");
 
@@ -74,6 +152,7 @@ fn create_powershell_profile(
     let mut context = Context::new();
     context.insert("idf_path", idf_path);
     context.insert("idf_tools_path", idf_tools_path);
+    context.insert("add_paths_extras", &export_paths.join(";"));
     let rendered = match tera.render("powershell_profile", &context) {
         Err(e) => {
             error!("Failed to render template: {}", e);
@@ -106,10 +185,16 @@ pub fn create_desktop_shortcut(
     idf_path: &str,
     name: &str,
     idf_tools_path: &str,
+    export_paths: Vec<String>,
 ) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
         "windows" => {
-            let filename = match create_powershell_profile(profile_path, idf_path, idf_tools_path) {
+            let filename = match create_powershell_profile(
+                profile_path,
+                idf_path,
+                idf_tools_path,
+                export_paths,
+            ) {
                 Ok(filename) => filename,
                 Err(err) => {
                     error!("Failed to create PowerShell profile: {}", err);

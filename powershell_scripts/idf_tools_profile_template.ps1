@@ -3,6 +3,9 @@ $env:IDF_PATH = '{{idf_path}}'
 $env:IDF_TOOLS_PATH = '{{idf_tools_path}}'
 $env:IDF_PYTHON_ENV_PATH = '{{idf_tools_path}}\python\'
 
+# Set system path
+$env:PATH += ";{{add_paths_extras}}"
+
 # Define the Invoke-idfpy function
 function global:Invoke-idfpy {
     {{idf_tools_path}}\python\Scripts\python.exe {{idf_path}}\tools\idf.py @args
