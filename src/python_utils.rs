@@ -1,3 +1,4 @@
+use log::trace;
 use rustpython_vm as vm;
 use rustpython_vm::function::PosArgs;
 use std::env;
@@ -28,16 +29,23 @@ pub fn run_python_script_from_file(
         _ => std::process::Command::new("bash"),
     };
 
+    let callable = if let Some(args) = args {
+        format!("{} {} {}", python.unwrap_or("python3"), path, args)
+    } else {
+        format!("{} {}", python.unwrap_or("python3"), path)
+    };
+
     let mut command = match std::env::consts::OS {
         "windows" => binding
             .arg("-Command")
             .arg(python.unwrap_or("python3.exe"))
             .arg(path),
-        _ => binding.arg("-c").arg(python.unwrap_or("python3")).arg(path),
+        _ => binding.arg("-c").arg(callable),
     };
-
-    if let Some(args) = args {
-        command = command.arg(args);
+    if std::env::consts::OS == "windows" {
+        if let Some(args) = args {
+            command = command.arg(args);
+        }
     }
 
     if let Some(envs) = envs {

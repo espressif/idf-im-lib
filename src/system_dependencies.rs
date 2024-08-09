@@ -81,6 +81,7 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
     match std::env::consts::OS {
         "linux" => {
             let package_manager = determine_package_manager();
+            debug!("Detected package manager: {:?}", package_manager);
             match package_manager {
                 Some("apt") => {
                     for tool in list_of_required_tools {
@@ -88,7 +89,9 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                             .arg(format!("list --installed | grep {}", tool))
                             .output();
                         match output {
-                            Ok(_) => {}
+                            Ok(o) => {
+                                debug!("{} is already installed: {:?}", tool, o);
+                            }
                             Err(_e) => {
                                 unsatisfied.push(tool);
                             }
@@ -101,7 +104,9 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                             .arg(format!("-l | grep {}", tool))
                             .output();
                         match output {
-                            Ok(_) => {}
+                            Ok(o) => {
+                                debug!("{} is already installed: {:?}", tool, o);
+                            }
                             Err(_e) => {
                                 unsatisfied.push(tool);
                             }
@@ -114,7 +119,9 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                             .arg(format!("list installed | grep {}", tool))
                             .output();
                         match output {
-                            Ok(_) => {}
+                            Ok(o) => {
+                                debug!("{} is already installed: {:?}", tool, o);
+                            }
                             Err(_e) => {
                                 unsatisfied.push(tool);
                             }
@@ -127,7 +134,9 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                             .arg(format!("-Qs | grep {}", tool))
                             .output();
                         match output {
-                            Ok(_) => {}
+                            Ok(o) => {
+                                debug!("{} is already installed: {:?}", tool, o);
+                            }
                             Err(_e) => {
                                 unsatisfied.push(tool);
                             }
@@ -140,7 +149,9 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                             .arg(format!("se --installed-only {}", tool))
                             .output();
                         match output {
-                            Ok(_) => {}
+                            Ok(o) => {
+                                debug!("{} is already installed: {:?}", tool, o);
+                            }
                             Err(_e) => {
                                 unsatisfied.push(tool);
                             }
