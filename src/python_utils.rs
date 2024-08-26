@@ -145,7 +145,12 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         .output();
     match output {
         Ok(out) => {
-            if out.status.success() {
+            if out.status.success()
+                & !std::str::from_utf8(&out.stdout) // "Python was not found but can be installed from the Microsoft Store" has status success
+                    .unwrap()
+                    .to_string()
+                    .contains("Microsoft")
+            {
                 outputs.push(Ok(std::str::from_utf8(&out.stdout).unwrap().to_string()));
             } else {
                 outputs.push(Err(std::str::from_utf8(&out.stderr).unwrap().to_string()));
