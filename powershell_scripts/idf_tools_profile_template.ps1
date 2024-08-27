@@ -35,7 +35,7 @@ function global:parttool.py {
 New-Alias -Name idf.py -Value Invoke-idfpy -Force -Scope Global
 
 # Activate your Python environment
-. 'C:\esp\v5.3\tools\python\Scripts\Activate.ps1'
+. '{{idf_tools_path}}\python\Scripts\Activate.ps1'
 
 # Display setup information
 Write-Host 'IDF PowerShell Environment' -ForegroundColor Green
