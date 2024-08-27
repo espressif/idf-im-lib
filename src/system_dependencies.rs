@@ -85,12 +85,17 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
             match package_manager {
                 Some("apt") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("apt")
-                            .arg(format!("list --installed | grep {}", tool))
+                        let output = std::process::Command::new("bash")
+                            .arg("-c")
+                            .arg(format!("apt list --installed | grep {}", tool))
                             .output();
                         match output {
                             Ok(o) => {
-                                debug!("{} is already installed: {:?}", tool, o);
+                                if !o.status.success() {
+                                    unsatisfied.push(tool);
+                                } else {
+                                    debug!("{} is already installed: {:?}", tool, o);
+                                }
                             }
                             Err(_e) => {
                                 unsatisfied.push(tool);
@@ -100,12 +105,17 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("dpkg") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("dpkg")
-                            .arg(format!("-l | grep {}", tool))
+                        let output = std::process::Command::new("bash")
+                            .arg("-c")
+                            .arg(format!("dpkg -l | grep {}", tool))
                             .output();
                         match output {
                             Ok(o) => {
-                                debug!("{} is already installed: {:?}", tool, o);
+                                if !o.status.success() {
+                                    unsatisfied.push(tool);
+                                } else {
+                                    debug!("{} is already installed: {:?}", tool, o);
+                                }
                             }
                             Err(_e) => {
                                 unsatisfied.push(tool);
@@ -115,12 +125,17 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("dnf") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("dnf")
-                            .arg(format!("list installed | grep {}", tool))
+                        let output = std::process::Command::new("bash")
+                            .arg("-c")
+                            .arg(format!("dnf list installed | grep {}", tool))
                             .output();
                         match output {
                             Ok(o) => {
-                                debug!("{} is already installed: {:?}", tool, o);
+                                if !o.status.success() {
+                                    unsatisfied.push(tool);
+                                } else {
+                                    debug!("{} is already installed: {:?}", tool, o);
+                                }
                             }
                             Err(_e) => {
                                 unsatisfied.push(tool);
@@ -130,12 +145,17 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("pacman") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("pacman")
-                            .arg(format!("-Qs | grep {}", tool))
+                        let output = std::process::Command::new("bash")
+                            .arg("-c")
+                            .arg(format!("pacman -Qs | grep {}", tool))
                             .output();
                         match output {
                             Ok(o) => {
-                                debug!("{} is already installed: {:?}", tool, o);
+                                if !o.status.success() {
+                                    unsatisfied.push(tool);
+                                } else {
+                                    debug!("{} is already installed: {:?}", tool, o);
+                                }
                             }
                             Err(_e) => {
                                 unsatisfied.push(tool);
@@ -145,12 +165,17 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("zypper") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("zypper")
-                            .arg(format!("se --installed-only {}", tool))
+                        let output = std::process::Command::new("bash")
+                            .arg("-c")
+                            .arg(format!("zypper se --installed-only {}", tool))
                             .output();
                         match output {
                             Ok(o) => {
-                                debug!("{} is already installed: {:?}", tool, o);
+                                if !o.status.success() {
+                                    unsatisfied.push(tool);
+                                } else {
+                                    debug!("{} is already installed: {:?}", tool, o);
+                                }
                             }
                             Err(_e) => {
                                 unsatisfied.push(tool);
@@ -174,12 +199,21 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
         }
         "macos" => {
             for tool in list_of_required_tools {
-                let output = std::process::Command::new("brew")
-                    .arg(format!("list | grep {}", tool))
+                let output = std::process::Command::new("bash")
+                    .arg("-c")
+                    .arg(format!("brew list | grep {}", tool))
                     .output();
                 match output {
-                    Ok(_) => {}
-                    Err(_e) => {
+                    Ok(o) => {
+                        if o.status.success() {
+                            debug!("{} is already installed: {:?}", tool, o);
+                        } else {
+                            debug!("{} is not installed: {:?}", tool, o);
+                            unsatisfied.push(tool);
+                        }
+                    }
+                    Err(e) => {
+                        debug!("{} is not installed: {:?}", tool, e);
                         unsatisfied.push(tool);
                     }
                 }
@@ -187,11 +221,18 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
         }
         "windows" => {
             for tool in list_of_required_tools {
-                let output = std::process::Command::new(tool)
-                    .arg(format!("-- version"))
+                let output = std::process::Command::new("powershell")
+                    .arg("-Command")
+                    .arg(format!("{} -- version", tool))
                     .output();
                 match output {
-                    Ok(_) => {}
+                    Ok(o) => {
+                        if !o.status.success() {
+                            unsatisfied.push(tool);
+                        } else {
+                            debug!("{} is already installed: {:?}", tool, o);
+                        }
+                    }
                     Err(_e) => {
                         unsatisfied.push(tool);
                     }
