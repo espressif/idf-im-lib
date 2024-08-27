@@ -1,4 +1,4 @@
-use log::trace;
+use log::{debug, trace};
 use rustpython_vm as vm;
 use rustpython_vm::function::PosArgs;
 use std::env;
@@ -136,6 +136,16 @@ pub fn get_python_platform_definition(python: Option<&str>) -> String {
 ///   containing the standard output as a string. If the script execution fails, the result will be `Err`
 ///   containing the standard error as a string.
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
+    if std::env::consts::OS == "windows" {
+        let path_with_scoop = match crate::system_dependencies::get_scoop_path() {
+            Some(s) => s,
+            None => {
+                debug!("Could not get scoop path");
+                "".to_string()
+            }
+        };
+        crate::system_dependencies::add_to_path(&path_with_scoop).unwrap();
+    }
     let mut outputs = Vec::new();
     // check pip
     let output = std::process::Command::new(python.unwrap_or("python3"))

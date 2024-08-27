@@ -214,7 +214,7 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
 ///   the function returns the path to the Scoop shims directory.
 /// * `None` - If the function is executed on a non-Windows system or if the Scoop shims directory cannot be found,
 ///   the function returns None.
-fn get_scoop_path() -> Option<String> {
+pub fn get_scoop_path() -> Option<String> {
     if std::env::consts::OS == "windows" {
         let home_dir = match dirs::home_dir() {
             Some(d) => d,
@@ -480,7 +480,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
 ///
 /// * `Ok(())` - If the new directory is successfully added to the PATH.
 /// * `Err(std::io::Error)` - If an error occurs while trying to add the new directory to the PATH.
-fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
+pub fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
     let binding = env::var_os("PATH").unwrap_or_default();
     let paths = binding.to_str().unwrap();
 
