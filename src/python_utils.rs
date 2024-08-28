@@ -1,8 +1,8 @@
 use log::{debug, trace};
 use rustpython_vm as vm;
 use rustpython_vm::function::PosArgs;
-use std::env;
 use std::process::ExitCode;
+use std::{env, path::PathBuf};
 use vm::{builtins::PyStrRef, Interpreter};
 
 /// Runs a Python script from a specified file with optional arguments and environment variables.
@@ -136,6 +136,7 @@ pub fn get_python_platform_definition(python: Option<&str>) -> String {
 ///   containing the standard output as a string. If the script execution fails, the result will be `Err`
 ///   containing the standard error as a string.
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
+    let mut win_python = None;
     if std::env::consts::OS == "windows" {
         let path_with_scoop = match crate::system_dependencies::get_scoop_path() {
             Some(s) => s,
@@ -145,10 +146,35 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
             }
         };
         crate::system_dependencies::add_to_path(&path_with_scoop).unwrap();
+        win_python = if python.is_none() {
+            let home_dir = match dirs::home_dir() {
+                Some(d) => d,
+                None => {
+                    debug!("Could not get home directory");
+                    PathBuf::new()
+                }
+            };
+            let scoop_shims_path = home_dir.join("scoop").join("shims");
+            let final_path = scoop_shims_path
+                .join("python3.exe")
+                .to_str()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            Some(final_path)
+        } else {
+            match python {
+                Some(p) => Some(p.to_string()),
+                None => None,
+            }
+        };
     }
     let mut outputs = Vec::new();
     // check pip
-    let output = std::process::Command::new(python.unwrap_or("python3"))
+    let tmp = match win_python.clone() {
+        Some(p) => p,
+        None => "python3".to_string(),
+    };
+    let output = std::process::Command::new(&tmp)
         .arg("-m")
         .arg("pip")
         .arg("--version")
@@ -169,7 +195,12 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         Err(e) => outputs.push(Err(e.to_string())),
     }
     // check venv
-    let output_2 = std::process::Command::new(python.unwrap_or("python3"))
+    let tmo = match win_python.clone() {
+        Some(p) => p,
+        None => "python3".to_string(),
+    };
+
+    let output_2 = std::process::Command::new(&tmo)
         .arg("-m")
         .arg("venv")
         .arg("-h")
@@ -186,13 +217,13 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
     }
     // check standard library
     let script = include_str!("./../python_scripts/sanity_check/import_standard_library.py");
-    outputs.push(run_python_script(script, python));
+    outputs.push(run_python_script(script, win_python.as_deref()));
     // check ctypes
     let script = include_str!("./../python_scripts/sanity_check/ctypes_check.py");
-    outputs.push(run_python_script(script, python));
+    outputs.push(run_python_script(script, win_python.as_deref()));
     // check https
     let script = include_str!("./../python_scripts/sanity_check/import_standard_library.py");
-    outputs.push(run_python_script(script, python));
+    outputs.push(run_python_script(script, win_python.as_deref()));
     outputs
 }
 
