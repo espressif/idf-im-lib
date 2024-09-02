@@ -1,6 +1,8 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
-use git2::{FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository};
-use log::{error, warn};
+use git2::{
+    FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository, SubmoduleUpdateOptions,
+};
+use log::{error, info, warn};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
@@ -485,6 +487,14 @@ pub fn add_path_to_path(directory_path: &str) {
     }
 }
 
+/// Messages that can be sent to update the progress bar.
+pub enum ProgressMessage {
+    /// Update the progress bar with the given value.
+    Update(u64),
+    /// Finish the progress bar.
+    Finish,
+}
+
 /// Performs a shallow clone of a Git repository.
 ///
 /// # Arguments
@@ -493,7 +503,7 @@ pub fn add_path_to_path(directory_path: &str) {
 /// * `path` - A string representing the local path where the repository should be cloned.
 /// * `branch` - An optional string representing the branch to checkout after cloning. If `None`, the default branch will be checked out.
 /// * `tag` - An optional string representing the tag to checkout after cloning. If `None`, the repository will be cloned at the specified branch.
-/// * `progress_function` - A closure or function that will be called to report progress during the cloning process.
+/// * `tx` - A channel sender for progress reporting.
 ///
 /// # Returns
 ///
@@ -505,7 +515,7 @@ fn shallow_clone(
     path: &str,
     branch: Option<&str>,
     tag: Option<&str>,
-    progress_function: impl FnMut(Progress<'_>) -> bool,
+    tx: std::sync::mpsc::Sender<ProgressMessage>,
 ) -> Result<Repository, git2::Error> {
     // Initialize fetch options with depth 1 for shallow cloning
     let mut fo = FetchOptions::new();
@@ -515,7 +525,12 @@ fn shallow_clone(
 
     // Set up remote callbacks for progress reporting
     let mut callbacks = RemoteCallbacks::new();
-    callbacks.transfer_progress(progress_function);
+    callbacks.transfer_progress(|stats| {
+        let val =
+            ((stats.received_objects() as f64) / (stats.total_objects() as f64) * 100.0) as u64;
+        tx.send(ProgressMessage::Update(val)).unwrap();
+        true
+    });
     fo.remote_callbacks(callbacks);
 
     // Create a new repository builder with the fetch options
@@ -551,22 +566,84 @@ fn shallow_clone(
         repo.set_head(&format!("refs/heads/{}", branch))?;
     };
 
+    let mut sfo = FetchOptions::new();
+    let mut callbacks = RemoteCallbacks::new();
+    info!("Fetching submodules");
+    callbacks.transfer_progress(|stats| {
+        let val =
+            ((stats.received_objects() as f64) / (stats.total_objects() as f64) * 100.0) as u64;
+        tx.send(ProgressMessage::Update(val)).unwrap();
+        true
+    });
+    sfo.remote_callbacks(callbacks);
+    tx.send(ProgressMessage::Finish).unwrap();
+    update_submodules(&repo, sfo, tx.clone())?;
+    info!("Finished fetching submodules");
+
     // Return the opened repository
     Ok(repo)
+}
+
+/// Updates submodules in the given repository using the provided fetch options.//+
+/////+
+/// # Parameters//+
+/////+
+/// * `repo`: A reference to the `git2::Repository` object representing the repository.//+
+/// * `fetch_options`: A `git2::FetchOptions` object containing the fetch options to be used.//+
+/// * `tx`: A `std::sync::mpsc::Sender<ProgressMessage>` object for sending progress messages.//+
+/////+
+/// # Returns//+
+/////+
+/// * `Result<(), git2::Error>`: On success, returns `Ok(())`. On error, returns a `git2::Error` indicating the cause of the error.//+
+fn update_submodules(
+    repo: &Repository,
+    fetch_options: FetchOptions,
+    tx: std::sync::mpsc::Sender<ProgressMessage>,
+) -> Result<(), git2::Error> {
+    let mut submodule_update_options = git2::SubmoduleUpdateOptions::new();
+    submodule_update_options.fetch(fetch_options);
+
+    fn update_submodules_recursive(
+        repo: &Repository,
+        path: &Path,
+        fetch_options: &mut SubmoduleUpdateOptions,
+        tx: std::sync::mpsc::Sender<ProgressMessage>,
+    ) -> Result<(), git2::Error> {
+        let submodules = repo.submodules()?;
+        for mut submodule in submodules {
+            tx.send(ProgressMessage::Finish).unwrap();
+            submodule.update(true, Some(fetch_options))?;
+            let sub_repo = submodule.open()?;
+            update_submodules_recursive(
+                &sub_repo,
+                &path.join(submodule.path()),
+                fetch_options,
+                tx.clone(),
+            )?;
+        }
+        Ok(())
+    }
+
+    update_submodules_recursive(
+        repo,
+        repo.workdir().unwrap(),
+        &mut submodule_update_options,
+        tx.clone(),
+    )
 }
 
 // This function is not used right now  because of limited scope of the POC
 // It gets specific fork of rustpython with build in libraries needed for IDF
 pub fn get_rustpython_fork(
     custom_path: &str,
-    progress_function: impl FnMut(Progress<'_>) -> bool,
+    tx: std::sync::mpsc::Sender<ProgressMessage>,
 ) -> Result<String, git2::Error> {
     let output = shallow_clone(
         "https://github.com/Hahihula/RustPython.git",
         custom_path,
         Some("test-rust-build"),
         None,
-        progress_function,
+        tx,
     );
     match output {
         Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
@@ -617,10 +694,13 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
 ///
 /// * `Result<String, git2::Error>`: On success, returns a `Result` containing the path of the cloned repository as a string.
 ///   On error, returns a `Result` containing a `git2::Error` indicating the cause of the error.
+///
+///
+
 pub fn get_esp_idf_by_tag_name(
     custom_path: &str,
     tag: Option<&str>,
-    progress_function: impl FnMut(Progress<'_>) -> bool,
+    tx: std::sync::mpsc::Sender<ProgressMessage>,
     mirror: Option<&str>,
     group_name: Option<&str>,
 ) -> Result<String, git2::Error> {
@@ -634,8 +714,8 @@ pub fn get_esp_idf_by_tag_name(
 
     let _ = ensure_path(custom_path);
     let output = match tag {
-        Some(tag) => shallow_clone(&url, custom_path, None, Some(tag), progress_function),
-        None => shallow_clone(&url, custom_path, Some("master"), None, progress_function),
+        Some(tag) => shallow_clone(&url, custom_path, None, Some(tag), tx),
+        None => shallow_clone(&url, custom_path, Some("master"), None, tx),
     };
     match output {
         Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
