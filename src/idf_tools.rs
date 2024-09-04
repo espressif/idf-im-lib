@@ -123,7 +123,8 @@ pub fn filter_tools_by_target(tools: Vec<Tool>, target: &[String]) -> Vec<Tool> 
 ///
 /// # Parameters
 ///
-/// * None
+/// * `python` - An optional reference to a string representing the Python interpreter to be used.
+///   If `None`, the function will default to using "python3".
 ///
 /// # Returns
 ///
@@ -131,7 +132,7 @@ pub fn filter_tools_by_target(tools: Vec<Tool>, target: &[String]) -> Vec<Tool> 
 ///   - `Ok(String)`: If the platform identification is successfully retrieved.
 ///   - `Err(String)`: If the Python platform definition is not supported.
 ///
-pub fn get_platform_identification() -> Result<String, String> {
+pub fn get_platform_identification(python: Option<&str>) -> Result<String, String> {
     let mut platform_from_name = HashMap::new();
 
     // Windows
@@ -183,7 +184,7 @@ pub fn get_platform_identification() -> Result<String, String> {
     platform_from_name.insert("Linux-armv7l", "linux-armel");
     platform_from_name.insert("Linux-arm", "linux-armel");
 
-    let python_platform_string = get_python_platform_definition(None).trim().to_string();
+    let python_platform_string = get_python_platform_definition(python).trim().to_string();
 
     let platform = match platform_from_name.get(&python_platform_string.as_str()) {
         Some(platform) => platform,
