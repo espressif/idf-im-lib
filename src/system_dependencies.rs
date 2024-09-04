@@ -257,7 +257,7 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
 ///   the function returns the path to the Scoop shims directory.
 /// * `None` - If the function is executed on a non-Windows system or if the Scoop shims directory cannot be found,
 ///   the function returns None.
-fn get_scoop_path() -> Option<String> {
+pub fn get_scoop_path() -> Option<String> {
     if std::env::consts::OS == "windows" {
         let home_dir = match dirs::home_dir() {
             Some(d) => d,
@@ -267,14 +267,7 @@ fn get_scoop_path() -> Option<String> {
             }
         };
         let scoop_shims_path = home_dir.join("scoop").join("shims");
-        let path = match std::env::var("PATH") {
-            Ok(s) => s,
-            Err(_) => {
-                debug!("Could not get PATH environment variable");
-                return None;
-            }
-        };
-        Some(format!("{};{}", path, scoop_shims_path.to_string_lossy()))
+        Some(scoop_shims_path.to_string_lossy().to_string())
     } else {
         None
     }
