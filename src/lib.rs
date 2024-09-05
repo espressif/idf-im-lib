@@ -516,6 +516,7 @@ fn shallow_clone(
     branch: Option<&str>,
     tag: Option<&str>,
     tx: std::sync::mpsc::Sender<ProgressMessage>,
+    recurse_submodules: bool,
 ) -> Result<Repository, git2::Error> {
     // Initialize fetch options with depth 1 for shallow cloning
     let mut fo = FetchOptions::new();
@@ -566,20 +567,21 @@ fn shallow_clone(
         repo.set_head(&format!("refs/heads/{}", branch))?;
     };
 
-    let mut sfo = FetchOptions::new();
-    let mut callbacks = RemoteCallbacks::new();
-    info!("Fetching submodules");
-    callbacks.transfer_progress(|stats| {
-        let val =
-            ((stats.received_objects() as f64) / (stats.total_objects() as f64) * 100.0) as u64;
-        tx.send(ProgressMessage::Update(val)).unwrap();
-        true
-    });
-    sfo.remote_callbacks(callbacks);
-    tx.send(ProgressMessage::Finish).unwrap();
-    update_submodules(&repo, sfo, tx.clone())?;
-    info!("Finished fetching submodules");
-
+    if (recurse_submodules) {
+        let mut sfo = FetchOptions::new();
+        let mut callbacks = RemoteCallbacks::new();
+        info!("Fetching submodules");
+        callbacks.transfer_progress(|stats| {
+            let val =
+                ((stats.received_objects() as f64) / (stats.total_objects() as f64) * 100.0) as u64;
+            tx.send(ProgressMessage::Update(val)).unwrap();
+            true
+        });
+        sfo.remote_callbacks(callbacks);
+        tx.send(ProgressMessage::Finish).unwrap();
+        update_submodules(&repo, sfo, tx.clone())?;
+        info!("Finished fetching submodules");
+    }
     // Return the opened repository
     Ok(repo)
 }
@@ -644,6 +646,7 @@ pub fn get_rustpython_fork(
         Some("test-rust-build"),
         None,
         tx,
+        false,
     );
     match output {
         Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
@@ -703,6 +706,7 @@ pub fn get_esp_idf_by_tag_name(
     tx: std::sync::mpsc::Sender<ProgressMessage>,
     mirror: Option<&str>,
     group_name: Option<&str>,
+    with_submodules: bool,
 ) -> Result<String, git2::Error> {
     let group = group_name.unwrap_or("espressif");
     let url = match mirror {
@@ -714,8 +718,8 @@ pub fn get_esp_idf_by_tag_name(
 
     let _ = ensure_path(custom_path);
     let output = match tag {
-        Some(tag) => shallow_clone(&url, custom_path, None, Some(tag), tx),
-        None => shallow_clone(&url, custom_path, Some("master"), None, tx),
+        Some(tag) => shallow_clone(&url, custom_path, None, Some(tag), tx, with_submodules),
+        None => shallow_clone(&url, custom_path, Some("master"), None, tx, with_submodules),
     };
     match output {
         Ok(repo) => Ok(repo.path().to_str().unwrap().to_string()),
