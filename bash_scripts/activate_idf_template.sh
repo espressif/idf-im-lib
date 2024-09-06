@@ -29,17 +29,17 @@ activate_venv() {
     fi
 }
 
-alias idf.py="python3 {{idf_path}}/tools/idf.py"
+alias idf.py="python3 \"{{idf_path}}/tools/idf.py\""
 
-alias esptool.py="python3 {{idf_path}}/components/esptool_py/esptool/esptool.py"
+alias esptool.py="python3 \"{{idf_path}}/components/esptool_py/esptool/esptool.py\""
 
-alias espefuse.py="python3 {{idf_path}}/components/esptool_py/esptool/espefuse.py"
+alias espefuse.py="python3 \"{{idf_path}}/components/esptool_py/esptool/espefuse.py\""
 
-alias espsecure.py="python3 {{idf_path}}/components/esptool_py/esptool/espsecure.py"
+alias espsecure.py="python3 \"{{idf_path}}/components/esptool_py/esptool/espsecure.py\""
 
-alias otatool.py="python3 {{idf_path}}/components/app_update/otatool.py"
+alias otatool.py="python3 \"{{idf_path}}/components/app_update/otatool.py\""
 
-alias parttool.py="python3 {{idf_path}}/components/partition_table/parttool.py"
+alias parttool.py="python3 \"{{idf_path}}/components/partition_table/parttool.py\""
 
 
 # Main execution

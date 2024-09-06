@@ -203,6 +203,12 @@ pub fn create_desktop_shortcut(
                     return Err(err);
                 }
             };
+            let icon = include_bytes!("../assets/eim.ico");
+            let mut home = dirs::home_dir().unwrap();
+            home.push("Icons");
+            ensure_path(home.to_str().unwrap());
+            home.push("eim.ico");
+            fs::write(&home, icon).expect("Unable to write file");
             let powershell_script_template =
                 include_str!("./../powershell_scripts/create_desktop_shortcut_template.ps1");
             // Create a new Tera instance
