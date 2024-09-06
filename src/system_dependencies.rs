@@ -521,9 +521,14 @@ fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
     let paths = binding.to_str().unwrap();
 
     if !paths.contains(new_path) {
+        let safe_path = if new_path.contains(" ") {
+            format!("\"{}\"", new_path)
+        } else {
+            new_path.to_owned()
+        };
         let new_path_string = match std::env::consts::OS {
-            "windows" => format!("{};{}", new_path, paths),
-            _ => format!("{}:{}", new_path, paths),
+            "windows" => format!("{};{}", safe_path, paths),
+            _ => format!("{}:{}", safe_path, paths),
         };
         env::set_var("PATH", new_path_string);
     }
