@@ -8,6 +8,8 @@ add_env_variable() {
     echo "Added environment variable IDF_TOOLS_PATH = $IDF_TOOLS_PATH"
     export IDF_PYTHON_ENV_PATH="{{idf_tools_path}}/python/"
     echo "Added environment variable IDF_PYTHON_ENV_PATH = $IDF_PYTHON_ENV_PATH"
+    export ESP_IDF_VERSION="{{idf_version}}"
+    echo "Added environment variable ESP_IDF_VERSION = $ESP_IDF_VERSION"
 
 }
 
