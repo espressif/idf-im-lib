@@ -1,8 +1,11 @@
 use log::trace;
+#[cfg(feature = "userustpython")]
 use rustpython_vm as vm;
+#[cfg(feature = "userustpython")]
 use rustpython_vm::function::PosArgs;
 use std::env;
 use std::process::ExitCode;
+#[cfg(feature = "userustpython")]
 use vm::{builtins::PyStrRef, Interpreter};
 
 /// Runs a Python script from a specified file with optional arguments and environment variables.
@@ -181,6 +184,7 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
     outputs
 }
 
+#[cfg(feature = "userustpython")]
 pub fn run_python_script_with_rustpython(script: &str) -> String {
     vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let scope = vm.new_scope_with_builtins();
@@ -195,6 +199,7 @@ pub fn run_python_script_with_rustpython(script: &str) -> String {
     "".to_string()
 }
 
+#[cfg(feature = "userustpython")]
 pub fn py_main_idf(interp: &Interpreter) -> vm::PyResult<PyStrRef> {
     interp.enter(|vm| {
         // Add local library path
@@ -230,6 +235,7 @@ pub fn py_main_idf(interp: &Interpreter) -> vm::PyResult<PyStrRef> {
     })
 }
 
+#[cfg(feature = "userustpython")]
 // in the future we will accept params what to actually install ;-)
 pub fn run_idf_tools() -> ExitCode {
     let mut settings = vm::Settings::default();

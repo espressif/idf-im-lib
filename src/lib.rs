@@ -642,6 +642,7 @@ fn update_submodules(
 
 // This function is not used right now  because of limited scope of the POC
 // It gets specific fork of rustpython with build in libraries needed for IDF
+#[cfg(feature = "userustpython")]
 pub fn get_rustpython_fork(
     custom_path: &str,
     tx: std::sync::mpsc::Sender<ProgressMessage>,
