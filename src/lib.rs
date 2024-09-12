@@ -4,6 +4,7 @@ use git2::{
 };
 use log::{error, info, warn};
 use reqwest::Client;
+use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
 
@@ -80,9 +81,18 @@ pub fn create_activation_shell_script(
         return Err(e.to_string());
     }
     let mut context = Context::new();
-    context.insert("idf_path", idf_path);
-    context.insert("idf_tools_path", idf_tools_path);
-    context.insert("idf_version", idf_version);
+    context.insert("idf_path", &idf_path);
+    context.insert(
+        "idf_path_escaped",
+        &replace_unescaped_spaces_posix(idf_path),
+    );
+
+    context.insert("idf_tools_path", &idf_tools_path);
+    context.insert(
+        "idf_tools_path_escaped",
+        &replace_unescaped_spaces_posix(idf_tools_path),
+    );
+    context.insert("idf_version", &idf_version);
     context.insert("addition_to_path", &export_paths.join(":"));
     let rendered = match tera.render("activate_idf_template", &context) {
         Err(e) => {
@@ -94,6 +104,46 @@ pub fn create_activation_shell_script(
 
     create_executable_shell_script(filename.to_str().unwrap(), &rendered)?;
     Ok(())
+}
+
+// TODO: unify the replace_unescaped_spaces functions
+pub fn replace_unescaped_spaces_posix(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' && chars.peek() == Some(&' ') {
+            // If we see a backslash followed by a space, keep them as-is
+            result.push(ch);
+            result.push(chars.next().unwrap());
+        } else if ch == ' ' {
+            // If we see a space not preceded by a backslash, replace it
+            result.push_str(r"\ ");
+        } else {
+            // For all other characters, just add them to the result
+            result.push(ch);
+        }
+    }
+
+    result
+}
+
+pub fn replace_unescaped_spaces_win(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '`' && chars.peek() == Some(&' ') {
+            result.push(ch);
+            result.push(chars.next().unwrap());
+        } else if ch == ' ' {
+            result.push_str(r"` ");
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 /// Runs a PowerShell script and captures its output.
@@ -152,8 +202,12 @@ fn create_powershell_profile(
     }
     ensure_path(profile_path).expect("Unable to create directory");
     let mut context = Context::new();
-    context.insert("idf_path", idf_path);
-    context.insert("idf_tools_path", idf_tools_path);
+    println!("idf_path: {}", replace_unescaped_spaces_win(idf_path));
+    context.insert("idf_path", &replace_unescaped_spaces_win(idf_path));
+    context.insert(
+        "idf_tools_path",
+        &replace_unescaped_spaces_win(idf_tools_path),
+    );
     context.insert("add_paths_extras", &export_paths.join(";"));
     let rendered = match tera.render("powershell_profile", &context) {
         Err(e) => {

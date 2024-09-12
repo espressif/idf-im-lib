@@ -20,26 +20,26 @@ add_to_path() {
 # Function to activate a Python virtual environment
 activate_venv() {
     VENV_PATH="$1"
-    if [ -f "$VENV_PATH/bin/activate" ]; then
-        source "$VENV_PATH/bin/activate"
-        echo "Activated virtual environment at $VENV_PATH"
+    if [ -f "${VENV_PATH}/bin/activate" ]; then
+        source "${VENV_PATH}/bin/activate"
+        echo "Activated virtual environment at ${VENV_PATH}"
     else
-        echo "Virtual environment not found at $VENV_PATH"
+        echo "Virtual environment not found at ${VENV_PATH}"
         return 1
     fi
 }
 
-alias idf.py="{{idf_tools_path}}/python/bin/python3 \"{{idf_path}}/tools/idf.py\""
+alias idf.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/tools/idf.py"
 
-alias esptool.py="{{idf_tools_path}}/python/bin/python3 \"{{idf_path}}/components/esptool_py/esptool/esptool.py\""
+alias esptool.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/components/esptool_py/esptool/esptool.py"
 
-alias espefuse.py="{{idf_tools_path}}/python/bin/python3 \"{{idf_path}}/components/esptool_py/esptool/espefuse.py\""
+alias espefuse.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/components/esptool_py/esptool/espefuse.py"
 
-alias espsecure.py="{{idf_tools_path}}/python/bin/python3 \"{{idf_path}}/components/esptool_py/esptool/espsecure.py\""
+alias espsecure.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/components/esptool_py/esptool/espsecure.py"
 
-alias otatool.py="{{idf_tools_path}}/python/bin/python3 \"{{idf_path}}/components/app_update/otatool.py\""
+alias otatool.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/components/app_update/otatool.py"
 
-alias parttool.py="{{idf_tools_path}}/python/bin/python3 \"{{idf_path}}/components/partition_table/parttool.py\""
+alias parttool.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/components/partition_table/parttool.py"
 
 
 # Main execution
@@ -47,7 +47,7 @@ add_env_variable
 add_to_path
 
 # Activate virtual environment (uncomment and provide the correct path)
-activate_venv $IDF_PYTHON_ENV_PATH
+activate_venv "${IDF_PYTHON_ENV_PATH}"
 
 echo "Environment setup complete for the current shell session."
 echo "These changes will be lost when you close this terminal."
