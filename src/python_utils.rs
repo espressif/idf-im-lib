@@ -30,10 +30,12 @@ pub fn run_python_script_from_file(
     };
 
     let callable = if let Some(args) = args {
-        format!("{} \"{}\" {}", python.unwrap_or("python3"), path, args)
+        format!("{} {} {}", python.unwrap_or("python3"), path, args)
     } else {
-        format!("{} \"{}\"", python.unwrap_or("python3"), path)
+        format!("{} {}", python.unwrap_or("python3"), path)
     };
+
+    // println!("### {} ###", callable);
 
     let mut command = match std::env::consts::OS {
         "windows" => binding
