@@ -12,6 +12,7 @@ use tera::{Context, Tera};
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
+pub mod settings;
 pub mod system_dependencies;
 use std::fs::{set_permissions, File};
 use std::{
