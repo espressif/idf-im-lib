@@ -4,6 +4,7 @@ use git2::{
 };
 use log::{error, info, warn};
 use reqwest::Client;
+#[cfg(feature = "userustpython")]
 use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
