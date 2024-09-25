@@ -63,6 +63,7 @@ pub async fn get_avalible_targets() -> Result<Vec<String>, String> {
             for target in &releases.IDF_TARGETS {
                 avalible_targets.push(target.value.clone());
             }
+            avalible_targets.sort();
             Ok(avalible_targets)
         }
         Err(err) => Err(err),
