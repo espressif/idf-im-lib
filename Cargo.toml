@@ -23,6 +23,7 @@ dirs = "5.0.1"
 tera = "1.20.0"
 config = "0.14.0"
 toml = "0.8"
+uuid = {version="1.10.0", features = ["v4"]}
 
 rustpython-vm = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["freeze-stdlib"], optional = true }
 rustpython-stdlib = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["ssl-vendor"], optional = true }
