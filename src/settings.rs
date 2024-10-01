@@ -91,7 +91,10 @@ impl Settings {
                         .join("python3"),
                 };
                 let activation_script = match std::env::consts::OS {
-                    "windows" => PathBuf::new(), //TODO: handle windows better
+                    "windows" => base_path
+                        .clone()
+                        .join(version)
+                        .join("Microsoft.PowerShell_profile.ps1"),
                     _ => base_path
                         .clone()
                         .join(format!("activate_idf_{}.sh", version)),
