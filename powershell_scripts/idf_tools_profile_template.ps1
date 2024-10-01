@@ -1,7 +1,29 @@
+{{env_var_pairs}}
+
+param(
+    [Parameter(Mandatory=$false)]
+    [switch]$e
+)
+
+# Function to print environment variables
+function Print-EnvVariables {
+    "ESP_IDF_VERSION={{idf_version}}"
+    $config.GetEnumerator() | ForEach-Object {
+        Write-Host "$($_.Key)=$($_.Value)"
+    }
+}
+
+# If -e parameter is provided, print variables and exit
+if ($e) {
+    Print-EnvVariables
+    return
+}
+
 # Set environment variables
-$env:IDF_PATH = "{{idf_path}}"
-$env:IDF_TOOLS_PATH = "{{idf_tools_path}}"
-$env:IDF_PYTHON_ENV_PATH = "{{idf_tools_path}}\python\"
+$env:ESP_IDF_VERSION = "{{idf_version}}"
+$config.GetEnumerator() | ForEach-Object {
+    $env:$($_.Key) = $_.Value
+}
 
 # Set system path
 $env:PATH += ";{{add_paths_extras}}"

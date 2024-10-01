@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::python_utils::get_python_platform_definition;
 use crate::system_dependencies;
+use crate::utils::find_directories_by_name;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Tool {
@@ -365,20 +366,7 @@ pub fn get_tools_export_paths(
 /// * A vector of `PathBuf` instances representing the directories found.
 ///
 pub fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
-    let mut result = Vec::new();
-
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if path.file_name().and_then(|n| n.to_str()) == Some("bin") {
-                    result.push(path.clone());
-                } else {
-                    result.extend(find_bin_directories(&path));
-                }
-            }
-        }
-    }
+    let result = find_directories_by_name(path, "bin");
 
     result
 }

@@ -1,13 +1,27 @@
 #!/bin/bash
 
+{{env_var_pairs}}
+
+# Function to print environment variables
+print_env_variables() {
+    echo "ESP_IDF_VERSION={{idf_version}}"
+    for pair in "${env_var_pairs[@]}"; do
+        key="${pair%%:*}"
+        value="${pair#*:}"
+        echo "$key=$value"
+    done
+}
+
 # Function to add an environment variable
 add_env_variable() {
-    export IDF_PATH="{{idf_path}}"
-    echo "Added environment variable IDF_PATH = $IDF_PATH"
-    export IDF_TOOLS_PATH="{{idf_tools_path}}"
-    echo "Added environment variable IDF_TOOLS_PATH = $IDF_TOOLS_PATH"
-    export IDF_PYTHON_ENV_PATH="{{idf_tools_path}}/python/"
-    echo "Added environment variable IDF_PYTHON_ENV_PATH = $IDF_PYTHON_ENV_PATH"
+    export ESP_IDF_VERSION="{{idf_version}}"
+    echo "Added environment variable ESP_IDF_VERSION = $ESP_IDF_VERSION"
+    for pair in "${env_var_pairs[@]}"; do
+        key="${pair%%:*}"
+        value="${pair#*:}"
+        export "${key}=${value}"
+        echo "Added environment variable $key = $value"
+    done
 
 }
 
@@ -28,6 +42,20 @@ activate_venv() {
         return 1
     fi
 }
+
+# Check if the script is being sourced or executed
+(return 0 2>/dev/null) && sourced=1 || sourced=0
+
+if [ "$1" = "-e" ]; then
+    print_env_variables
+    exit 0
+else
+    if [ "$sourced" -eq 0 ]; then
+        echo "This script should be sourced, not executed."
+        echo "If you want to print environment variables, run it with the -e parameter."
+        exit 1
+    fi
+fi
 
 alias idf.py="{{idf_tools_path_escaped}}/python/bin/python3 {{idf_path_escaped}}/tools/idf.py"
 

@@ -1,13 +1,12 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
-use git2::{
-    FetchOptions, ObjectType, Progress, RemoteCallbacks, Repository, SubmoduleUpdateOptions,
-};
+use git2::{FetchOptions, ObjectType, RemoteCallbacks, Repository, SubmoduleUpdateOptions};
 use log::{error, info, warn};
 use reqwest::Client;
 #[cfg(feature = "userustpython")]
 use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
+use utils::find_directories_by_name;
 
 pub mod command_executor;
 pub mod idf_tools;
@@ -15,13 +14,13 @@ pub mod idf_versions;
 pub mod python_utils;
 pub mod settings;
 pub mod system_dependencies;
+pub mod utils;
 use std::fs::{set_permissions, File};
 use std::{
     env,
     fs::{self},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    process::Command,
     sync::mpsc::Sender,
 };
 
@@ -55,6 +54,45 @@ fn create_executable_shell_script(file_path: &str, content: &str) -> Result<(), 
     Ok(())
 }
 
+/// Formats a vector of key-value pairs into a bash-compatible format for environment variables.
+///
+/// # Parameters
+///
+/// * `pairs` - A reference to a vector of tuples, where each tuple contains a key (String) and a value (String).
+///
+/// # Return
+///
+/// * A String representing the formatted environment variable pairs in bash-compatible format.
+///   Each pair is enclosed in double quotes and separated by a newline.
+///
+fn format_bash_env_pairs(pairs: &Vec<(String, String)>) -> String {
+    let formatted_pairs: Vec<String> = pairs
+        .iter()
+        .map(|(key, value)| format!("    \"{}:{}\"", key, value))
+        .collect();
+
+    format!("env_var_pairs=(\n{}\n)", formatted_pairs.join("\n"))
+}
+
+/// Formats a vector of key-value pairs into a PowerShell-compatible format for environment variables.
+///
+/// # Parameters
+///
+/// * `pairs`: A reference to a vector of tuples, where each tuple contains a key-value pair.
+///
+/// # Return
+///
+/// * A string representing the formatted environment variables in PowerShell-compatible format.
+///
+fn format_powershell_env_pairs(pairs: &Vec<(String, String)>) -> String {
+    let formatted_pairs: Vec<String> = pairs
+        .iter()
+        .map(|(key, value)| format!("    \"{}\" = \"{}\"", key, value))
+        .collect();
+
+    format!("$env_var_pairs = @{{\n{}\n}}", formatted_pairs.join("\n"))
+}
+
 /// Creates an activation shell script for the ESP-IDF toolchain.
 ///
 /// # Parameters
@@ -74,6 +112,7 @@ pub fn create_activation_shell_script(
     idf_tools_path: &str,
     idf_version: &str,
     export_paths: Vec<String>,
+    env_var_pairs: Vec<(String, String)>,
 ) -> Result<(), String> {
     ensure_path(file_path).map_err(|e| e.to_string())?;
     let mut filename = PathBuf::from(file_path);
@@ -85,6 +124,8 @@ pub fn create_activation_shell_script(
         return Err(e.to_string());
     }
     let mut context = Context::new();
+    let env_var_pairs_str = format_bash_env_pairs(&env_var_pairs);
+    context.insert("env_var_pairs", &env_var_pairs_str);
     context.insert("idf_path", &idf_path);
     context.insert(
         "idf_path_escaped",
@@ -195,7 +236,9 @@ fn create_powershell_profile(
     profile_path: &str,
     idf_path: &str,
     idf_tools_path: &str,
+    idf_version: &str,
     export_paths: Vec<String>,
+    env_var_pairs: Vec<(String, String)>,
 ) -> Result<String, std::io::Error> {
     let profile_template = include_str!("./../powershell_scripts/idf_tools_profile_template.ps1");
 
@@ -211,6 +254,12 @@ fn create_powershell_profile(
     let mut context = Context::new();
     println!("idf_path: {}", replace_unescaped_spaces_win(idf_path));
     context.insert("idf_path", &replace_unescaped_spaces_win(idf_path));
+    context.insert("idf_version", &idf_version);
+    context.insert(
+        "env_var_pairs",
+        &format_powershell_env_pairs(&env_var_pairs),
+    );
+
     context.insert(
         "idf_tools_path",
         &replace_unescaped_spaces_win(idf_tools_path),
@@ -246,9 +295,10 @@ fn create_powershell_profile(
 pub fn create_desktop_shortcut(
     profile_path: &str,
     idf_path: &str,
-    name: &str,
+    idf_version: &str,
     idf_tools_path: &str,
     export_paths: Vec<String>,
+    env_var_pairs: Vec<(String, String)>,
 ) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
         "windows" => {
@@ -256,7 +306,9 @@ pub fn create_desktop_shortcut(
                 profile_path,
                 idf_path,
                 idf_tools_path,
+                idf_version,
                 export_paths,
+                env_var_pairs,
             ) {
                 Ok(filename) => filename,
                 Err(err) => {
@@ -267,7 +319,7 @@ pub fn create_desktop_shortcut(
             let icon = include_bytes!("../assets/eim.ico");
             let mut home = dirs::home_dir().unwrap();
             home.push("Icons");
-            ensure_path(home.to_str().unwrap());
+            let _ = ensure_path(home.to_str().unwrap());
             home.push("eim.ico");
             fs::write(&home, icon).expect("Unable to write file");
             let powershell_script_template =
@@ -283,7 +335,7 @@ pub fn create_desktop_shortcut(
             }
             let mut context = Context::new();
             context.insert("custom_profile_filename", &filename);
-            context.insert("name", &name);
+            context.insert("name", &idf_version);
             let rendered = match tera.render("powershell_script", &context) {
                 Err(e) => {
                     error!("Failed to render template: {}", e);
@@ -403,6 +455,22 @@ pub fn setup_environment_variables(
     env_vars.push(("IDF_TOOLS_PATH".to_string(), instal_dir_string));
     let idf_path_string = idf_path.to_str().unwrap().to_string();
     env_vars.push(("IDF_PATH".to_string(), idf_path_string));
+    env_vars.push((
+        "ESP_ROM_ELF_DIR".to_string(),
+        get_elf_rom_dir(tool_install_directory)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string(),
+    ));
+    env_vars.push((
+        "OPENOCD_SCRIPTS".to_string(),
+        get_openocd_scripts_folder(tool_install_directory)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string(),
+    ));
 
     let python_env_path_string = tool_install_directory
         .join("python")
@@ -413,6 +481,75 @@ pub fn setup_environment_variables(
 
     Ok(env_vars)
 }
+
+/// Retrieves the path to the ELF (Executable and Linkable Format) ROM directory.
+///
+/// # Parameters
+///
+/// * `idf_tools_path` - A reference to a `PathBuf` representing the path to the IDF tools directory.
+///
+/// # Return
+///
+/// * `Result<PathBuf, std::io::Error>` - On success, returns a `PathBuf` representing the path to the ELF ROM directory.
+///   On error, returns a `std::io::Error` indicating the cause of the error.
+fn get_elf_rom_dir(idf_tools_path: &PathBuf) -> Result<PathBuf, std::io::Error> {
+    let elf_rom_dir = idf_tools_path.join("tools").join("esp-rom-elfs");
+    if elf_rom_dir.exists() {
+        let mut subdirs = vec![];
+        // Read the entries in the elf_rom_dir
+        for entry in fs::read_dir(&elf_rom_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Check if the entry is a directory and add it to the vector
+            if path.is_dir() {
+                subdirs.push(path);
+            }
+        }
+
+        // Sort the subdirectories
+        subdirs.sort();
+        if let Some(first_subdir) = subdirs.first() {
+            // Set the first subdirectory as the ELF ROM directory
+            let elf_rom_dir = first_subdir.as_path();
+            log::debug!("Using ELF ROM directory: {}", elf_rom_dir.display());
+        } else {
+            log::warn!("No ELF ROM directories found in {}", elf_rom_dir.display());
+        }
+    } else {
+        log::warn!("No ELF ROM directories found in {}", elf_rom_dir.display());
+    }
+    Ok(elf_rom_dir)
+}
+
+/// Retrieves the path to the OpenOCD scripts folder within the IDF tools directory.
+///
+/// # Parameters
+///
+/// * `idf_tools_path` - A reference to a `PathBuf` representing the path to the IDF tools directory.
+///
+/// # Return
+///
+/// * `Result<PathBuf, std::io::Error>` - On success, returns a `PathBuf` representing the path to the OpenOCD scripts folder.
+///   On error, returns a `std::io::Error` indicating the cause of the error.
+fn get_openocd_scripts_folder(idf_tools_path: &PathBuf) -> Result<PathBuf, std::io::Error> {
+    let search_path = idf_tools_path.join("tools").join("openocd-esp32");
+
+    let result = find_directories_by_name(&search_path, "scripts");
+
+    if result.is_empty() {
+        log::warn!("No OpenOCD scripts found in {}", search_path.display());
+        return Ok(PathBuf::new());
+    } else if result.len() > 1 {
+        log::warn!(
+            "Multiple OpenOCD scripts found in {}, using the first one",
+            search_path.display()
+        );
+    }
+
+    Ok(result[0].clone())
+}
+
 pub enum DownloadProgress {
     Progress(u64, u64), // (downloaded, total)
     Complete,
@@ -463,7 +600,6 @@ pub async fn download_file(
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
     {
-        log::trace!("Downloaded {}/{} bytes", downloaded, total_size);
         // Update the amount downloaded
         downloaded += chunk.len() as u64;
 
@@ -911,6 +1047,11 @@ pub fn single_version_post_install(
     tool_install_directory: &str,
     export_paths: Vec<String>,
 ) {
+    let env_vars = setup_environment_variables(
+        &PathBuf::from(tool_install_directory),
+        &PathBuf::from(idf_path),
+    )
+    .unwrap_or(vec![]);
     match std::env::consts::OS {
         "windows" => {
             // Creating desktop shortcut
@@ -920,6 +1061,7 @@ pub fn single_version_post_install(
                 idf_version,
                 tool_install_directory,
                 export_paths,
+                env_vars,
             ) {
                 error!(
                     "{} {:?}",
@@ -940,6 +1082,7 @@ pub fn single_version_post_install(
                 tool_install_directory,
                 idf_version,
                 export_paths,
+                env_vars,
             );
         }
     }
