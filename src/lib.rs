@@ -790,6 +790,48 @@ pub fn get_esp_idf_by_tag_name(
     }
 }
 
+/// Returns a list of available IDF mirrors.
+///
+/// # Purpose
+///
+/// This function provides a list of URLs that can be used as mirrors for cloning the ESP-IDF repository.
+///
+/// # Parameters
+///
+/// None.
+///
+/// # Return Value
+///
+/// A reference to a static array of static strings, where each string represents a mirror URL.
+///
+pub fn get_idf_mirrors_list() -> &'static [&'static str] {
+    &[
+        "https://github.com",
+        "https://jihulab.com/esp-mirror",
+        "https://gitee.com/",
+    ]
+}
+
+/// Returns a list of available IDF tools mirrors.
+///
+/// This function provides a list of URLs that can be used as mirrors for cloning the ESP-IDF tools repository.
+///
+/// # Parameters
+///
+/// None.
+///
+/// # Return Value
+///
+/// A reference to a static array of static strings, where each string represents a mirror URL.
+///
+pub fn get_idf_tools_mirrors_list() -> &'static [&'static str] {
+    &[
+        "https://github.com",
+        "https://dl.espressif.com/github_assets",
+        "https://dl.espressif.cn/github_assets",
+    ]
+}
+
 #[cfg(test)]
 mod tests {
 
