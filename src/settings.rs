@@ -4,7 +4,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Default, Serialize)]
+#[derive(Debug, Deserialize, Default, Serialize, Clone)]
 pub struct Settings {
     pub path: Option<PathBuf>,
     pub idf_path: Option<PathBuf>,
