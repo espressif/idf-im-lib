@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::process::{Command, Output};
 
 pub trait CommandExecutor {
@@ -74,12 +75,12 @@ impl CommandExecutor for WindowsExecutor {
             .spawn()?;
 
         if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(script.as_bytes())?;
+            stdin.write(script.as_bytes())?;
         }
 
         let output = child.wait_with_output()?;
 
-        output
+        Ok(output)
     }
 }
 

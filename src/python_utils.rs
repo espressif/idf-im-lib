@@ -96,10 +96,7 @@ pub fn run_python_script_from_file(
 /// * `Result<String, String>` - On success, returns a `Result` containing the standard output of the Python script as a string.
 ///   On error, returns a `Result` containing the standard error of the Python script as a string.
 pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, String> {
-    let output = std::process::Command::new(python.unwrap_or("python3"))
-        .arg("-c")
-        .arg(script)
-        .output();
+    let output = command_executor::execute_command(python.unwrap_or("python3"), &["-c", &script]);
     match output {
         Ok(out) => {
             if out.status.success() {
@@ -155,11 +152,8 @@ pub fn get_python_platform_definition(python: Option<&str>) -> String {
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
     let mut outputs = Vec::new();
     // check pip
-    let output = std::process::Command::new(python.unwrap_or("python3"))
-        .arg("-m")
-        .arg("pip")
-        .arg("--version")
-        .output();
+    let output =
+        command_executor::execute_command(python.unwrap_or("python3"), &["-m", "pip", "--version"]);
     match output {
         Ok(out) => {
             if out.status.success() {
@@ -171,11 +165,8 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         Err(e) => outputs.push(Err(e.to_string())),
     }
     // check venv
-    let output_2 = std::process::Command::new(python.unwrap_or("python3"))
-        .arg("-m")
-        .arg("venv")
-        .arg("-h")
-        .output();
+    let output_2 =
+        command_executor::execute_command(python.unwrap_or("python3"), &["-m", "venv", "-h"]);
     match output_2 {
         Ok(out) => {
             if out.status.success() {

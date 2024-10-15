@@ -21,10 +21,7 @@ fn determine_package_manager() -> Option<&'static str> {
     let package_managers = vec!["apt", "dpkg", "dnf", "pacman", "zypper"];
 
     for manager in package_managers {
-        let output = std::process::Command::new(manager)
-            .arg("--version")
-            .output();
-
+        let output = command_executor::execute_command(manager, &["--version"]);
         match output {
             Ok(output) => {
                 if output.status.success() {
@@ -398,12 +395,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
             match package_manager {
                 Some("apt") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("apt")
-                            .arg("install")
-                            .arg("-y")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["apt", "install", "-y", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -414,12 +409,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 }
                 Some("dnf") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("dnf")
-                            .arg("install")
-                            .arg("-y")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["dnf", "install", "-y", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -430,12 +423,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 }
                 Some("pacman") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("pacman")
-                            .arg("-Syu")
-                            .arg("--noconfirm")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["pacman", "-S", "--noconfirm", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -446,12 +437,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 }
                 Some("zypper") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("zypper")
-                            .arg("--non-interactive")
-                            .arg("install")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["zypper", "install", "-y", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -470,10 +459,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
         }
         "macos" => {
             for package in packages_list {
-                let output = std::process::Command::new("brew")
-                    .arg("install")
-                    .arg(&package)
-                    .output();
+                let output = command_executor::execute_command("brew", &["install", &package]);
                 match output {
                     Ok(_) => {
                         debug!("Successfully installed {}", package);
