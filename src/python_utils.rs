@@ -8,8 +8,10 @@ use std::process::ExitCode;
 #[cfg(feature = "userustpython")]
 use vm::{builtins::PyStrRef, Interpreter};
 
+use crate::command_executor;
+
 /// Runs a Python script from a specified file with optional arguments and environment variables.
-///
+/// todo: check documentation
 /// # Parameters
 ///
 /// * `path` - A reference to a string representing the path to the Python script file.
@@ -27,38 +29,48 @@ pub fn run_python_script_from_file(
     python: Option<&str>,
     envs: Option<&Vec<(String, String)>>,
 ) -> Result<String, String> {
-    let mut binding = match std::env::consts::OS {
-        "windows" => std::process::Command::new("powershell"),
-        _ => std::process::Command::new("bash"),
-    };
-
     let callable = if let Some(args) = args {
         format!("{} {} {}", python.unwrap_or("python3"), path, args)
     } else {
         format!("{} {}", python.unwrap_or("python3"), path)
     };
+    let executor = command_executor::get_executor();
 
-    // println!("### {} ###", callable);
+    let output = match envs {
+        Some(envs) => {
+            let envs_str = envs
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect::<Vec<(&str, &str)>>();
 
-    let mut command = match std::env::consts::OS {
-        "windows" => binding
-            .arg("-Command")
-            .arg(python.unwrap_or("python3.exe"))
-            .arg(path),
-        _ => binding.arg("-c").arg(callable),
+            match std::env::consts::OS {
+                "windows" => executor.execute_with_env(
+                    "powershell",
+                    &vec![
+                        "-Command",
+                        python.unwrap_or("python3.exe"),
+                        path,
+                        args.unwrap_or(""),
+                    ],
+                    envs_str,
+                ),
+                _ => executor.execute_with_env("bash", &vec!["-c", &callable], envs_str),
+            }
+        }
+        None => match std::env::consts::OS {
+            "windows" => executor.execute(
+                "powershell",
+                &vec![
+                    "-Command",
+                    python.unwrap_or("python3.exe"),
+                    path,
+                    args.unwrap_or(""),
+                ],
+            ),
+            _ => executor.execute("bash", &vec!["-c", &callable]),
+        },
     };
-    if std::env::consts::OS == "windows" {
-        if let Some(args) = args {
-            command = command.arg(args);
-        }
-    }
 
-    if let Some(envs) = envs {
-        for (key, value) in envs {
-            command = command.env(key, value);
-        }
-    }
-    let output = command.output();
     match output {
         Ok(out) => {
             if out.status.success() {
