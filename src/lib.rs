@@ -9,6 +9,7 @@ use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
 
+pub mod command_executor;
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
@@ -149,6 +150,7 @@ pub fn replace_unescaped_spaces_win(input: &str) -> String {
 }
 
 /// Runs a PowerShell script and captures its output.
+/// TODO: fix documentation
 ///
 /// # Parameters
 ///
@@ -158,20 +160,22 @@ pub fn replace_unescaped_spaces_win(input: &str) -> String {
 ///
 /// * `Ok(String)`: If the PowerShell script executes successfully, the function returns a `Result` containing the script's output as a string.
 /// * `Err(Box<dyn std::error::Error>)`: If an error occurs during the execution of the PowerShell script, the function returns a `Result` containing the error.
-pub fn run_powershell_script(script: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let mut child = Command::new("powershell")
-        .args(["-Command", "-"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(script.as_bytes())?;
+pub fn run_powershell_script(script: &str) -> Result<String, std::io::Error> {
+    match std::env::consts::OS {
+        "windows" => match command_executor::get_executor().run_script_from_string(script) {
+            Ok(output) => String::from_utf8(output.stdout)
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)),
+            Err(err) => Err(err),
+        },
+        _ => {
+            let error_message = "run_powershell_script is only supported on Windows.";
+            error!("{}", error_message);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                error_message,
+            ))
+        }
     }
-
-    let output = child.wait_with_output()?;
-
-    Ok(String::from_utf8(output.stdout)?)
 }
 
 /// Creates a PowerShell profile script for the ESP-IDF tools.

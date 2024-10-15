@@ -2,6 +2,8 @@ use std::env;
 
 use log::{debug, trace};
 
+use crate::command_executor;
+
 /// Determines the package manager installed on the system.
 ///
 /// This function attempts to identify the package manager by executing each
@@ -19,10 +21,7 @@ fn determine_package_manager() -> Option<&'static str> {
     let package_managers = vec!["apt", "dpkg", "dnf", "pacman", "zypper"];
 
     for manager in package_managers {
-        let output = std::process::Command::new(manager)
-            .arg("--version")
-            .output();
-
+        let output = command_executor::execute_command(manager, &["--version"]);
         match output {
             Ok(output) => {
                 if output.status.success() {
@@ -85,10 +84,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
             match package_manager {
                 Some("apt") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(format!("apt list --installed | grep {}", tool))
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sh",
+                            &["-c", &format!("apt list --installed | grep {}", tool)],
+                        );
                         match output {
                             Ok(o) => {
                                 if o.status.success() {
@@ -106,10 +105,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("dpkg") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(format!("dpkg -l | grep {}", tool))
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sh",
+                            &["-c", &format!("dpkg -l | grep {}", tool)],
+                        );
                         match output {
                             Ok(o) => {
                                 if o.status.success() {
@@ -127,10 +126,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("dnf") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(format!("dnf list installed | grep {}", tool))
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sh",
+                            &["-c", &format!("dnf list installed | grep {}", tool)],
+                        );
                         match output {
                             Ok(o) => {
                                 if o.status.success() {
@@ -147,10 +146,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("pacman") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(format!("pacman -Qs | grep {}", tool))
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sh",
+                            &["-c", &format!("pacman -Qs | grep {}", tool)],
+                        );
                         match output {
                             Ok(o) => {
                                 if o.status.success() {
@@ -167,10 +166,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
                 }
                 Some("zypper") => {
                     for tool in list_of_required_tools {
-                        let output = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(format!("zypper se --installed-only {}", tool))
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sh",
+                            &["-c", &format!("zypper se --installed-only {}", tool)],
+                        );
                         match output {
                             Ok(o) => {
                                 if o.status.success() {
@@ -201,10 +200,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
         }
         "macos" => {
             for tool in list_of_required_tools {
-                let output = std::process::Command::new("zsh")
-                    .arg("-c")
-                    .arg(format!("brew list | grep {}", tool))
-                    .output();
+                let output = command_executor::execute_command(
+                    "zsh",
+                    &["-c", &format!("brew list | grep {}", tool)],
+                );
                 match output {
                     Ok(o) => {
                         if o.status.success() {
@@ -222,10 +221,10 @@ pub fn check_prerequisites() -> Result<Vec<&'static str>, String> {
         }
         "windows" => {
             for tool in list_of_required_tools {
-                let output = std::process::Command::new("powershell")
-                    .arg("-Command")
-                    .arg(format!("{} --version", tool))
-                    .output();
+                let output = command_executor::execute_command(
+                    "powershell",
+                    &["-Command", &format!("{} --version", tool)],
+                );
                 match output {
                     Ok(o) => {
                         if o.status.success() {
@@ -294,14 +293,20 @@ fn install_scoop_package_manager() -> Result<(), String> {
             };
             // add_to_windows_path(&path_with_scoop).unwrap();
             add_to_path(&path_with_scoop).unwrap();
-            let _ = std::process::Command::new("powershell")
-                .arg("-Command")
-                .arg("Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force")
-                .output();
-            let output = std::process::Command::new("powershell")
-                .arg("-Command")
-                .arg("Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')")
-                .output();
+            let _ = command_executor::execute_command(
+                "powershell",
+                &[
+                    "-Command",
+                    "Set-ExecutionPolicy  -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
+                ],
+            );
+            let output = command_executor::execute_command(
+              "powershell",
+              &[
+                    "-Command",
+                    "Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')",
+                ],
+            );
             match output {
                 Ok(o) => {
                     trace!("{}", String::from_utf8(o.stdout).unwrap());
@@ -345,9 +350,10 @@ pub fn ensure_scoop_package_manager() -> Result<(), String> {
             // crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
             // add_to_windows_path(&path_with_scoop).unwrap();
             add_to_path(&path_with_scoop).unwrap();
-            let output = std::process::Command::new("powershell")
-                .args(["-Command", "scoop", "--version"])
-                .output();
+            let output = command_executor::execute_command(
+                "powershell",
+                &["-Command", "scoop", "--version"],
+            );
             match output {
                 Ok(o) => {
                     if o.status.success() {
@@ -389,12 +395,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
             match package_manager {
                 Some("apt") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("apt")
-                            .arg("install")
-                            .arg("-y")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["apt", "install", "-y", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -405,12 +409,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 }
                 Some("dnf") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("dnf")
-                            .arg("install")
-                            .arg("-y")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["dnf", "install", "-y", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -421,12 +423,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 }
                 Some("pacman") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("pacman")
-                            .arg("-Syu")
-                            .arg("--noconfirm")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["pacman", "-S", "--noconfirm", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -437,12 +437,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                 }
                 Some("zypper") => {
                     for package in packages_list {
-                        let output = std::process::Command::new("sudo")
-                            .arg("zypper")
-                            .arg("--non-interactive")
-                            .arg("install")
-                            .arg(&package)
-                            .output();
+                        let output = command_executor::execute_command(
+                            "sudo",
+                            &["zypper", "install", "-y", &package],
+                        );
                         match output {
                             Ok(_) => {
                                 debug!("Successfully installed {}", package);
@@ -461,10 +459,7 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
         }
         "macos" => {
             for package in packages_list {
-                let output = std::process::Command::new("brew")
-                    .arg("install")
-                    .arg(&package)
-                    .output();
+                let output = command_executor::execute_command("brew", &["install", &package]);
                 match output {
                     Ok(_) => {
                         debug!("Successfully installed {}", package);
@@ -484,9 +479,10 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                     }
                 };
                 debug!("Installing {} with scoop: {}", package, path_with_scoop);
-                let output = std::process::Command::new("powershell")
-                    .args(["-Command", "scoop", "install", &package])
-                    .output();
+                let output = command_executor::execute_command(
+                    "powershell",
+                    &["-Command", "scoop", "install", &package],
+                );
                 match output {
                     Ok(o) => {
                         trace!("{}", String::from_utf8(o.stdout).unwrap());

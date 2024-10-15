@@ -8,8 +8,10 @@ use std::process::ExitCode;
 #[cfg(feature = "userustpython")]
 use vm::{builtins::PyStrRef, Interpreter};
 
+use crate::command_executor;
+
 /// Runs a Python script from a specified file with optional arguments and environment variables.
-///
+/// todo: check documentation
 /// # Parameters
 ///
 /// * `path` - A reference to a string representing the path to the Python script file.
@@ -27,38 +29,48 @@ pub fn run_python_script_from_file(
     python: Option<&str>,
     envs: Option<&Vec<(String, String)>>,
 ) -> Result<String, String> {
-    let mut binding = match std::env::consts::OS {
-        "windows" => std::process::Command::new("powershell"),
-        _ => std::process::Command::new("bash"),
-    };
-
     let callable = if let Some(args) = args {
         format!("{} {} {}", python.unwrap_or("python3"), path, args)
     } else {
         format!("{} {}", python.unwrap_or("python3"), path)
     };
+    let executor = command_executor::get_executor();
 
-    // println!("### {} ###", callable);
+    let output = match envs {
+        Some(envs) => {
+            let envs_str = envs
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect::<Vec<(&str, &str)>>();
 
-    let mut command = match std::env::consts::OS {
-        "windows" => binding
-            .arg("-Command")
-            .arg(python.unwrap_or("python3.exe"))
-            .arg(path),
-        _ => binding.arg("-c").arg(callable),
+            match std::env::consts::OS {
+                "windows" => executor.execute_with_env(
+                    "powershell",
+                    &vec![
+                        "-Command",
+                        python.unwrap_or("python3.exe"),
+                        path,
+                        args.unwrap_or(""),
+                    ],
+                    envs_str,
+                ),
+                _ => executor.execute_with_env("bash", &vec!["-c", &callable], envs_str),
+            }
+        }
+        None => match std::env::consts::OS {
+            "windows" => executor.execute(
+                "powershell",
+                &vec![
+                    "-Command",
+                    python.unwrap_or("python3.exe"),
+                    path,
+                    args.unwrap_or(""),
+                ],
+            ),
+            _ => executor.execute("bash", &vec!["-c", &callable]),
+        },
     };
-    if std::env::consts::OS == "windows" {
-        if let Some(args) = args {
-            command = command.arg(args);
-        }
-    }
 
-    if let Some(envs) = envs {
-        for (key, value) in envs {
-            command = command.env(key, value);
-        }
-    }
-    let output = command.output();
     match output {
         Ok(out) => {
             if out.status.success() {
@@ -84,10 +96,7 @@ pub fn run_python_script_from_file(
 /// * `Result<String, String>` - On success, returns a `Result` containing the standard output of the Python script as a string.
 ///   On error, returns a `Result` containing the standard error of the Python script as a string.
 pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, String> {
-    let output = std::process::Command::new(python.unwrap_or("python3"))
-        .arg("-c")
-        .arg(script)
-        .output();
+    let output = command_executor::execute_command(python.unwrap_or("python3"), &["-c", &script]);
     match output {
         Ok(out) => {
             if out.status.success() {
@@ -143,11 +152,8 @@ pub fn get_python_platform_definition(python: Option<&str>) -> String {
 pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> {
     let mut outputs = Vec::new();
     // check pip
-    let output = std::process::Command::new(python.unwrap_or("python3"))
-        .arg("-m")
-        .arg("pip")
-        .arg("--version")
-        .output();
+    let output =
+        command_executor::execute_command(python.unwrap_or("python3"), &["-m", "pip", "--version"]);
     match output {
         Ok(out) => {
             if out.status.success() {
@@ -159,11 +165,8 @@ pub fn python_sanity_check(python: Option<&str>) -> Vec<Result<String, String>> 
         Err(e) => outputs.push(Err(e.to_string())),
     }
     // check venv
-    let output_2 = std::process::Command::new(python.unwrap_or("python3"))
-        .arg("-m")
-        .arg("venv")
-        .arg("-h")
-        .output();
+    let output_2 =
+        command_executor::execute_command(python.unwrap_or("python3"), &["-m", "venv", "-h"]);
     match output_2 {
         Ok(out) => {
             if out.status.success() {
