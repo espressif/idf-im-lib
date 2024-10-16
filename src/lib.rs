@@ -794,6 +794,36 @@ pub fn get_esp_idf_by_tag_name(
     }
 }
 
+/// Expands a tilde (~) in a given path to the user's home directory.
+///
+/// This function takes a reference to a `Path` and returns a `PathBuf` representing the expanded path.
+/// If the input path starts with a tilde (~), the function replaces the tilde with the user's home directory.
+/// If the input path does not start with a tilde, the function returns the input path as is.
+///
+/// # Parameters
+///
+/// * `path`: A reference to a `Path` representing the path to be expanded.
+///
+/// # Return Value
+///
+/// * A `PathBuf` representing the expanded path.
+///
+pub fn expand_tilde(path: &Path) -> PathBuf {
+    if path.starts_with("~") {
+        if let Some(home_dir) = dirs::home_dir() {
+            if path.to_str().unwrap() == "~" {
+                home_dir
+            } else {
+                home_dir.join(path.strip_prefix("~").unwrap())
+            }
+        } else {
+            path.to_path_buf()
+        }
+    } else {
+        path.to_path_buf()
+    }
+}
+
 /// Returns a list of available IDF mirrors.
 ///
 /// # Purpose
@@ -946,5 +976,13 @@ mod tests {
         let result = ensure_path(directory_path);
 
         assert!(result.is_ok());
+    }
+    #[test]
+    fn test_expand_tilde() {
+        let home_dir = dirs::home_dir().unwrap();
+        let tilde_path = Path::new("~/test_directory");
+        let expanded_path = expand_tilde(tilde_path);
+
+        assert_eq!(expanded_path, home_dir.join("test_directory"));
     }
 }
