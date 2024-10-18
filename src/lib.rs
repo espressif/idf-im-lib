@@ -749,6 +749,38 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
     }
 }
 
+pub fn get_esp_idf_by_version_and_mirror(
+    path: &str,
+    version: &str,
+    mirror: Option<&str>,
+    tx: std::sync::mpsc::Sender<ProgressMessage>,
+    with_submodules: bool,
+) -> Result<std::string::String, git2::Error> {
+    let tag = if version == "master" {
+        None
+    } else {
+        Some(version)
+    };
+    let group_name = mirror
+        .as_deref()
+        .map(|m| {
+            if m.contains("https://gitee.com/") {
+                Some("EspressifSystems")
+            } else {
+                None
+            }
+        })
+        .flatten();
+    get_esp_idf_by_tag_name(
+        path,
+        tag.as_deref(),
+        tx,
+        mirror,
+        group_name,
+        with_submodules,
+    )
+}
+
 /// Clones the ESP-IDF repository from the specified URL, tag, or branch,
 /// using the provided progress function for reporting cloning progress.
 ///
