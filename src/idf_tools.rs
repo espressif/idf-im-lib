@@ -2,9 +2,10 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::python_utils::get_python_platform_definition;
+use crate::system_dependencies;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Tool {
@@ -254,6 +255,45 @@ pub fn change_links_donwanload_mirror(
         })
         .collect();
     new_tools
+}
+
+pub fn get_list_of_tools_to_download(
+    tools_file: ToolsFile,
+    selected_chips: Vec<String>,
+    mirror: Option<&str>,
+) -> HashMap<String, Download> {
+    let list = filter_tools_by_target(tools_file.tools, &selected_chips);
+    let platform = match get_platform_identification(None) {
+        Ok(platform) => platform,
+        Err(err) => {
+            if std::env::consts::OS == "windows" {
+                // All this is for cases when on windows microsoft store creates "pseudolinks" for python
+                let scp = system_dependencies::get_scoop_path();
+                let usable_python = match scp {
+                    Some(path) => {
+                        let mut python_path = PathBuf::from(path);
+                        python_path.push("python3.exe");
+                        python_path.to_str().unwrap().to_string()
+                    }
+                    None => "python3.exe".to_string(),
+                };
+                match get_platform_identification(Some(&usable_python)) {
+                    Ok(platform) => platform,
+                    Err(err) => {
+                        log::error!("Unable to identify platform: {}", err);
+                        panic!("Unable to identify platform: {}", err);
+                    }
+                }
+            } else {
+                panic!("Unable to identify platform: {}", err);
+            }
+        }
+    };
+    change_links_donwanload_mirror(
+        get_download_link_by_platform(list, &platform),
+        // Some("https://dl.espressif.com/github_assets"), // this switches mirror, should be parametrized
+        mirror,
+    )
 }
 
 #[cfg(test)]
