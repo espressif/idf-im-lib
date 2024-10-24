@@ -863,6 +863,47 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
+pub fn single_version_post_install(
+    version_instalation_path: &str,
+    idf_path: &str,
+    idf_version: &str,
+    tool_install_directory: &str,
+    export_paths: Vec<String>,
+) {
+    match std::env::consts::OS {
+        "windows" => {
+            // Creating desktop shortcut
+            if let Err(err) = create_desktop_shortcut(
+                version_instalation_path,
+                idf_path,
+                &idf_version,
+                tool_install_directory,
+                export_paths,
+            ) {
+                error!(
+                    "{} {:?}",
+                    "Failed to create desktop shortcut",
+                    err.to_string()
+                )
+            } else {
+                info!("Desktop shortcut created successfully")
+            }
+        }
+        _ => {
+            let install_folder = PathBuf::from(version_instalation_path);
+            let install_path = install_folder.parent().unwrap().to_str().unwrap();
+            let _ = create_activation_shell_script(
+                // todo: handle error
+                install_path,
+                idf_path,
+                tool_install_directory,
+                &idf_version,
+                export_paths,
+            );
+        }
+    }
+}
+
 /// Returns a list of available IDF mirrors.
 ///
 /// # Purpose
