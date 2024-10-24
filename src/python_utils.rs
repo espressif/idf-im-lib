@@ -83,7 +83,38 @@ pub fn run_python_script_from_file(
     }
 }
 
+/// Runs the IDF tools Python installation script.
+///
+/// This function prepares the environment to run a Python installation script for
+/// IDF tools by ensuring that the path is properly escaped based on the operating
+/// system. It then executes the installation script followed by the Python environment
+/// setup script.
+///
+/// # Parameters
+///
+/// - `idf_tools_path`: A string slice that represents the path to the IDF tools.
+/// - `environment_variables`: A vector of tuples containing environment variable names
+///   and their corresponding values, which will be passed to the installation scripts.
+///
+/// # Returns
+///
+/// This function returns a `Result<String, String>`. On success, it returns an `Ok`
+/// containing the output of the Python environment setup script. On failure, it returns
+/// an `Err` containing an error message.
+///
+/// # Example
+///
+/// ```rust
+/// let path = "path/to/idf_tools";
+/// let env_vars = vec![("VAR_NAME".to_string(), "value".to_string())];
+/// match run_idf_tools_py(path, &env_vars) {
+///     Ok(output) => println!("Success: {}", output),
+///     Err(e) => eprintln!("Error: {}", e),
+/// }
+/// ```
+
 pub fn run_idf_tools_py(
+    // todo: rewrite functionality to rust
     idf_tools_path: &str,
     environment_variables: &Vec<(String, String)>,
 ) -> Result<String, String> {

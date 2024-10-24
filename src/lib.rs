@@ -379,6 +379,19 @@ pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<
     Ok(computed_checksum == expected_checksum)
 }
 
+/// Sets up the environment variables required for the ESP-IDF build system.
+///
+/// # Parameters
+///
+/// * `tool_install_directory`: A reference to a `PathBuf` representing the directory where the ESP-IDF tools are installed.
+/// * `idf_path`: A reference to a `PathBuf` representing the path to the ESP-IDF framework directory.
+///
+/// # Return
+///
+/// * `Result<Vec<(String, String)>, String>`:
+///   - On success, returns a `Vec` of tuples containing the environment variable names and their corresponding values.
+///   - On error, returns a `String` describing the error.
+///
 pub fn setup_environment_variables(
     tool_install_directory: &PathBuf,
     idf_path: &PathBuf,
@@ -756,6 +769,21 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
     }
 }
 
+/// Clones the ESP-IDF repository from the specified URL, tag, or branch,
+/// using the provided progress function for reporting cloning progress.
+///
+/// # Parameters
+///
+/// * `path`: A reference to a string representing the local path where the repository should be cloned.
+/// * `version`: A reference to a string representing the version of ESP-IDF to clone.
+/// * `mirror`: An optional reference to a string representing the URL of a mirror to use for cloning the repository.
+/// * `tx`: A `std::sync::mpsc::Sender<ProgressMessage>` object for sending progress messages.
+/// * `with_submodules`: A boolean indicating whether to clone the ESP-IDF repository with submodules.
+///
+/// # Return Value
+///
+/// * `Result<std::string::String, git2::Error>`: On success, returns a `Result` containing the path of the cloned repository as a string.
+///   On error, returns a `Result` containing a `git2::Error` indicating the cause of the error.
 pub fn get_esp_idf_by_version_and_mirror(
     path: &str,
     version: &str,
@@ -863,6 +891,19 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
+/// Performs post-installation tasks for a single version of ESP-IDF.
+///
+/// This function creates a desktop shortcut on Windows systems and generates an activation shell script
+/// for other operating systems. The desktop shortcut is created using the `create_desktop_shortcut` function,
+/// and the activation shell script is generated using the `create_activation_shell_script` function.
+///
+/// # Parameters
+///
+/// * `version_instalation_path`: A reference to a string representing the path where the ESP-IDF version is installed.
+/// * `idf_path`: A reference to a string representing the path to the ESP-IDF repository.
+/// * `idf_version`: A reference to a string representing the version of ESP-IDF being installed.
+/// * `tool_install_directory`: A reference to a string representing the directory where the ESP-IDF tools will be installed.
+/// * `export_paths`: A vector of strings representing the paths that need to be exported for the ESP-IDF tools.
 pub fn single_version_post_install(
     version_instalation_path: &str,
     idf_path: &str,
@@ -876,7 +917,7 @@ pub fn single_version_post_install(
             if let Err(err) = create_desktop_shortcut(
                 version_instalation_path,
                 idf_path,
-                &idf_version,
+                idf_version,
                 tool_install_directory,
                 export_paths,
             ) {
@@ -897,7 +938,7 @@ pub fn single_version_post_install(
                 install_path,
                 idf_path,
                 tool_install_directory,
-                &idf_version,
+                idf_version,
                 export_paths,
             );
         }

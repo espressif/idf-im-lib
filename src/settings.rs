@@ -22,7 +22,6 @@ pub struct Settings {
     pub recurse_submodules: Option<bool>,
 }
 
-// Example of custom default implementation
 impl Default for Settings {
     fn default() -> Self {
         Self {

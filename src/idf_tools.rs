@@ -257,6 +257,19 @@ pub fn change_links_donwanload_mirror(
     new_tools
 }
 
+/// Retrieves a HashMap of tool names and their corresponding Download instances based on the given platform.
+///
+/// # Parameters
+///
+/// * `tools_file`: A `ToolsFile` instance containing the list of tools and their versions.
+/// * `selected_chips`: A vector of strings representing the selected chips.
+/// * `mirror`: An optional reference to a string representing the mirror URL. If `None`, the original URLs are used.
+///
+/// # Return
+///
+/// * A HashMap where the keys are tool names and the values are Download instances.
+///   If a tool does not have a download for the given platform, it is not included in the HashMap.
+///
 pub fn get_list_of_tools_to_download(
     tools_file: ToolsFile,
     selected_chips: Vec<String>,
@@ -289,13 +302,24 @@ pub fn get_list_of_tools_to_download(
             }
         }
     };
-    change_links_donwanload_mirror(
-        get_download_link_by_platform(list, &platform),
-        // Some("https://dl.espressif.com/github_assets"), // this switches mirror, should be parametrized
-        mirror,
-    )
+    change_links_donwanload_mirror(get_download_link_by_platform(list, &platform), mirror)
 }
 
+/// Retrieves a vector of strings representing the export paths for the tools.
+///
+/// This function creates export paths for the tools based on their `export_paths` and the `tools_install_path`.
+/// It also checks for duplicate export paths and logs them accordingly.
+///
+/// # Parameters
+///
+/// * `tools_file`: A `ToolsFile` instance containing the list of tools and their versions.
+/// * `selected_chip`: A vector of strings representing the selected chips.
+/// * `tools_install_path`: A reference to a string representing the installation path for the tools.
+///
+/// # Return
+///
+/// * A vector of strings representing the export paths for the tools.
+///
 pub fn get_tools_export_paths(
     tools_file: ToolsFile,
     selected_chip: Vec<String>,
@@ -330,6 +354,16 @@ pub fn get_tools_export_paths(
     paths
 }
 
+/// Recursively searches for directories named "bin" within the given path.
+///
+/// # Parameters
+///
+/// * `path`: A reference to a `Path` representing the starting directory for the search.
+///
+/// # Return
+///
+/// * A vector of `PathBuf` instances representing the directories found.
+///
 fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
     let mut result = Vec::new();
 
@@ -354,6 +388,55 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+
+    use std::path::Path;
+
+    use super::find_bin_directories;
+
+    #[test]
+    fn test_find_bin_directories_non_existing_path() {
+        let non_existing_path = Path::new("/path/that/does/not/exist");
+        let result = find_bin_directories(non_existing_path);
+
+        assert_eq!(
+            result.len(),
+            0,
+            "Expected an empty vector when the path does not exist"
+        );
+    }
+    #[test]
+    fn test_find_bin_directories_root_level() {
+        let test_dir = Path::new("/tmp/test_directory");
+        let bin_dir = test_dir.join("bin");
+
+        // Create the test directory and the "bin" directory
+        std::fs::create_dir_all(&bin_dir).unwrap();
+
+        let result = find_bin_directories(&test_dir);
+
+        // Remove the test directory
+        std::fs::remove_dir_all(&test_dir).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], bin_dir);
+    }
+
+    #[test]
+    fn test_find_bin_directories_deeply_nested() {
+        let test_dir = Path::new("/tmp/test_files/deeply_nested_directory/something/");
+        let bin_dir = test_dir.join("bin");
+
+        // Create the test directory and the "bin" directory
+        std::fs::create_dir_all(&bin_dir).unwrap();
+
+        let result = find_bin_directories(&test_dir);
+
+        // Remove the test directory
+        std::fs::remove_dir_all(&test_dir).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], bin_dir);
+    }
 
     #[test]
     fn test_change_links_download_mirror_multiple_tools() {
