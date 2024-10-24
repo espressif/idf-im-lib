@@ -22,6 +22,7 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::Command,
+    sync::mpsc::Sender,
 };
 
 /// Creates an executable shell script with the given content and file path.
@@ -378,47 +379,37 @@ pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<
     Ok(computed_checksum == expected_checksum)
 }
 
-/// Asynchronously downloads a file from a given URL to a specified destination path.
-///
-/// # Arguments
-///
-/// * `url` - A string representing the URL from which to download the file.
-/// * `destination_path` - A string representing the path to which the file should be downloaded.
-/// * `show_progress` - A function pointer to a function that will be called to show the progress of the download.
-///
-/// # Returns
-///
-/// * `Ok(())` if the file was successfully downloaded.
-/// * `Err(std::io::Error)` if an error occurred during the download process.
-///
-/// # Example
-///
-/// ```rust
-/// use std::io;
-/// use std::io::Write;
-/// use idf_im_lib::download_file;
-///
-/// fn download_progress_callback(downloaded: u64, total: u64) {
-///     let percentage = (downloaded as f64 / total as f64) * 100.0;
-///     print!("\rDownloading... {:.2}%", percentage);
-///     io::stdout().flush().unwrap();
-/// }
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let url = "https://example.com/file.zip";
-///     let destination_path = "/path/to/destination";
-///
-///     match download_file(url, destination_path, &download_progress_callback).await {
-///         Ok(()) => println!("\nDownload completed successfully"),
-///         Err(e) => eprintln!("Error during download: {}", e),
-///     }
-/// }
-/// ```
+pub fn setup_environment_variables(
+    tool_install_directory: &PathBuf,
+    idf_path: &PathBuf,
+) -> Result<Vec<(String, String)>, String> {
+    let mut env_vars = vec![];
+
+    // env::set_var("IDF_TOOLS_PATH", tool_install_directory);
+    let instal_dir_string = tool_install_directory.to_str().unwrap().to_string();
+    env_vars.push(("IDF_TOOLS_PATH".to_string(), instal_dir_string));
+    let idf_path_string = idf_path.to_str().unwrap().to_string();
+    env_vars.push(("IDF_PATH".to_string(), idf_path_string));
+
+    let python_env_path_string = tool_install_directory
+        .join("python")
+        .to_str()
+        .unwrap()
+        .to_string();
+    env_vars.push(("IDF_PYTHON_ENV_PATH".to_string(), python_env_path_string));
+
+    Ok(env_vars)
+}
+pub enum DownloadProgress {
+    Progress(u64, u64), // (downloaded, total)
+    Complete,
+    Error(String),
+}
+
 pub async fn download_file(
     url: &str,
     destination_path: &str,
-    show_progress: &dyn Fn(u64, u64),
+    progress_sender: Sender<DownloadProgress>,
 ) -> Result<(), std::io::Error> {
     // Create a new HTTP client
     let client = Client::new();
@@ -432,17 +423,26 @@ pub async fn download_file(
 
     // Get the total size of the file being downloaded
     let total_size = response.content_length().ok_or_else(|| {
+        let _ = progress_sender.send(DownloadProgress::Error(
+            "Failed to get content length".into(),
+        ));
         std::io::Error::new(std::io::ErrorKind::Other, "Failed to get content length")
     })?;
+    log::info!("Downloading {} to {}", url, destination_path);
 
     // Extract the filename from the URL
     let filename = Path::new(&url).file_name().unwrap().to_str().unwrap();
-
+    log::info!(
+        "Filename: {} and destination: {}",
+        filename,
+        destination_path
+    );
     // Create a new file at the specified destination path
     let mut file = File::create(Path::new(&destination_path).join(Path::new(filename)))?;
+    log::info!("Created file at {}", destination_path);
 
     // Initialize the amount downloaded
-    let mut amount_downloaded: u64 = 0;
+    let mut downloaded: u64 = 0;
 
     // Download the file in chunks
     while let Some(chunk) = response
@@ -450,15 +450,22 @@ pub async fn download_file(
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
     {
+        log::info!("Downloaded {}/{} bytes", downloaded, total_size);
         // Update the amount downloaded
-        amount_downloaded += chunk.len() as u64;
+        downloaded += chunk.len() as u64;
 
         // Write the chunk to the file
         file.write_all(&chunk)?;
 
         // Call the progress callback function
-        show_progress(amount_downloaded, total_size);
+        if let Err(e) = progress_sender.send(DownloadProgress::Progress(downloaded, total_size)) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to send progress: {}", e),
+            ));
+        }
     }
+    let _ = progress_sender.send(DownloadProgress::Complete);
 
     // Return Ok(()) if the download was successful
     Ok(())

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub path: Option<PathBuf>,
-    pub idf_path: Option<PathBuf>,
+    pub idf_path: Option<PathBuf>, // TOOD: These are actually multiple because of multiple version --> remove from config alltogether or changed it to computed property
     pub tool_download_folder_name: Option<String>,
     pub tool_install_folder_name: Option<String>,
     pub target: Option<Vec<String>>,

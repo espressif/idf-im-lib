@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -294,6 +294,59 @@ pub fn get_list_of_tools_to_download(
         // Some("https://dl.espressif.com/github_assets"), // this switches mirror, should be parametrized
         mirror,
     )
+}
+
+pub fn get_tools_export_paths(
+    tools_file: ToolsFile,
+    selected_chip: Vec<String>,
+    tools_install_path: &str,
+) -> Vec<String> {
+    let bin_dirs = find_bin_directories(Path::new(tools_install_path));
+    log::debug!("Bin directories: {:?}", bin_dirs);
+
+    let list = filter_tools_by_target(tools_file.tools, &selected_chip);
+    // debug!("Creating export paths for: {:?}", list);
+    let mut paths = vec![];
+    for tool in &list {
+        tool.export_paths.iter().for_each(|path| {
+            let mut p = PathBuf::new();
+            p.push(tools_install_path);
+            for level in path {
+                p.push(level);
+            }
+            paths.push(p.to_str().unwrap().to_string());
+        });
+    }
+    for bin_dir in bin_dirs {
+        let str_p = bin_dir.to_str().unwrap().to_string();
+        if paths.contains(&str_p) {
+            log::trace!("Skipping duplicate export path: {}", str_p);
+        } else {
+            log::trace!("Adding export path: {}", str_p);
+            paths.push(str_p);
+        }
+    }
+    log::debug!("Export paths: {:?}", paths);
+    paths
+}
+
+fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
+    let mut result = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().and_then(|n| n.to_str()) == Some("bin") {
+                    result.push(path.clone());
+                } else {
+                    result.extend(find_bin_directories(&path));
+                }
+            }
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]

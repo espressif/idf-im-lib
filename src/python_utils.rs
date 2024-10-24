@@ -8,7 +8,7 @@ use std::process::ExitCode;
 #[cfg(feature = "userustpython")]
 use vm::{builtins::PyStrRef, Interpreter};
 
-use crate::command_executor;
+use crate::{command_executor, replace_unescaped_spaces_posix, replace_unescaped_spaces_win};
 
 /// Runs a Python script from a specified file with optional arguments and environment variables.
 /// todo: check documentation
@@ -81,6 +81,51 @@ pub fn run_python_script_from_file(
         }
         Err(e) => Err(e.to_string()),
     }
+}
+
+pub fn run_idf_tools_py(
+    idf_tools_path: &str,
+    environment_variables: &Vec<(String, String)>,
+) -> Result<String, String> {
+    let escaped_path = if std::env::consts::OS == "windows" {
+        replace_unescaped_spaces_win(&idf_tools_path)
+    } else {
+        replace_unescaped_spaces_posix(&idf_tools_path)
+    };
+    run_install_script(&escaped_path, environment_variables)?;
+    run_install_python_env_script(&escaped_path, environment_variables)
+}
+
+fn run_install_script(
+    idf_tools_path: &str,
+    environment_variables: &Vec<(String, String)>,
+) -> Result<String, String> {
+    let output = run_python_script_from_file(
+        idf_tools_path,
+        Some("install"),
+        None,
+        Some(environment_variables),
+    );
+
+    trace!("idf_tools.py install output:\n{:?}", output);
+
+    output
+}
+
+fn run_install_python_env_script(
+    idf_tools_path: &str,
+    environment_variables: &Vec<(String, String)>,
+) -> Result<String, String> {
+    let output = run_python_script_from_file(
+        idf_tools_path,
+        Some("install-python-env"),
+        None,
+        Some(environment_variables),
+    );
+
+    trace!("idf_tools.py install-python-env output:\n{:?}", output);
+
+    output
 }
 
 /// Executes a Python script using the provided Python interpreter and returns the script's output.
