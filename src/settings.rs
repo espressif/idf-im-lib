@@ -4,10 +4,10 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Default, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub path: Option<PathBuf>,
-    pub idf_path: Option<PathBuf>,
+    pub idf_path: Option<PathBuf>, // TOOD: These are actually multiple because of multiple version --> remove from config alltogether or changed it to computed property
     pub tool_download_folder_name: Option<String>,
     pub tool_install_folder_name: Option<String>,
     pub target: Option<Vec<String>>,
@@ -20,6 +20,27 @@ pub struct Settings {
     pub mirror: Option<String>,
     pub idf_mirror: Option<String>,
     pub recurse_submodules: Option<bool>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            path: None,
+            idf_path: None,
+            tool_download_folder_name: Some("dist".to_string()),
+            tool_install_folder_name: Some("tools".to_string()),
+            target: None,
+            idf_versions: None,
+            tools_json_file: Some("tools/tools.json".to_string()),
+            idf_tools_path: Some("tools/idf_tools.py".to_string()),
+            config_file: None,
+            non_interactive: Some(false),
+            wizard_all_questions: Some(false),
+            mirror: None,
+            idf_mirror: None,
+            recurse_submodules: Some(false),
+        }
+    }
 }
 
 impl Settings {
