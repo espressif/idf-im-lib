@@ -1,10 +1,11 @@
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::python_utils::get_python_platform_definition;
+use crate::system_dependencies;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Tool {
@@ -256,11 +257,186 @@ pub fn change_links_donwanload_mirror(
     new_tools
 }
 
+/// Retrieves a HashMap of tool names and their corresponding Download instances based on the given platform.
+///
+/// # Parameters
+///
+/// * `tools_file`: A `ToolsFile` instance containing the list of tools and their versions.
+/// * `selected_chips`: A vector of strings representing the selected chips.
+/// * `mirror`: An optional reference to a string representing the mirror URL. If `None`, the original URLs are used.
+///
+/// # Return
+///
+/// * A HashMap where the keys are tool names and the values are Download instances.
+///   If a tool does not have a download for the given platform, it is not included in the HashMap.
+///
+pub fn get_list_of_tools_to_download(
+    tools_file: ToolsFile,
+    selected_chips: Vec<String>,
+    mirror: Option<&str>,
+) -> HashMap<String, Download> {
+    let list = filter_tools_by_target(tools_file.tools, &selected_chips);
+    let platform = match get_platform_identification(None) {
+        Ok(platform) => platform,
+        Err(err) => {
+            if std::env::consts::OS == "windows" {
+                // All this is for cases when on windows microsoft store creates "pseudolinks" for python
+                let scp = system_dependencies::get_scoop_path();
+                let usable_python = match scp {
+                    Some(path) => {
+                        let mut python_path = PathBuf::from(path);
+                        python_path.push("python3.exe");
+                        python_path.to_str().unwrap().to_string()
+                    }
+                    None => "python3.exe".to_string(),
+                };
+                match get_platform_identification(Some(&usable_python)) {
+                    Ok(platform) => platform,
+                    Err(err) => {
+                        log::error!("Unable to identify platform: {}", err);
+                        panic!("Unable to identify platform: {}", err);
+                    }
+                }
+            } else {
+                panic!("Unable to identify platform: {}", err);
+            }
+        }
+    };
+    change_links_donwanload_mirror(get_download_link_by_platform(list, &platform), mirror)
+}
+
+/// Retrieves a vector of strings representing the export paths for the tools.
+///
+/// This function creates export paths for the tools based on their `export_paths` and the `tools_install_path`.
+/// It also checks for duplicate export paths and logs them accordingly.
+///
+/// # Parameters
+///
+/// * `tools_file`: A `ToolsFile` instance containing the list of tools and their versions.
+/// * `selected_chip`: A vector of strings representing the selected chips.
+/// * `tools_install_path`: A reference to a string representing the installation path for the tools.
+///
+/// # Return
+///
+/// * A vector of strings representing the export paths for the tools.
+///
+pub fn get_tools_export_paths(
+    tools_file: ToolsFile,
+    selected_chip: Vec<String>,
+    tools_install_path: &str,
+) -> Vec<String> {
+    let bin_dirs = find_bin_directories(Path::new(tools_install_path));
+    log::debug!("Bin directories: {:?}", bin_dirs);
+
+    let list = filter_tools_by_target(tools_file.tools, &selected_chip);
+    // debug!("Creating export paths for: {:?}", list);
+    let mut paths = vec![];
+    for tool in &list {
+        tool.export_paths.iter().for_each(|path| {
+            let mut p = PathBuf::new();
+            p.push(tools_install_path);
+            for level in path {
+                p.push(level);
+            }
+            paths.push(p.to_str().unwrap().to_string());
+        });
+    }
+    for bin_dir in bin_dirs {
+        let str_p = bin_dir.to_str().unwrap().to_string();
+        if paths.contains(&str_p) {
+            log::trace!("Skipping duplicate export path: {}", str_p);
+        } else {
+            log::trace!("Adding export path: {}", str_p);
+            paths.push(str_p);
+        }
+    }
+    log::debug!("Export paths: {:?}", paths);
+    paths
+}
+
+/// Recursively searches for directories named "bin" within the given path.
+///
+/// # Parameters
+///
+/// * `path`: A reference to a `Path` representing the starting directory for the search.
+///
+/// # Return
+///
+/// * A vector of `PathBuf` instances representing the directories found.
+///
+pub fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
+    let mut result = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().and_then(|n| n.to_str()) == Some("bin") {
+                    result.push(path.clone());
+                } else {
+                    result.extend(find_bin_directories(&path));
+                }
+            }
+        }
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::*;
+
+    use std::path::Path;
+
+    use super::find_bin_directories;
+
+    #[test]
+    fn test_find_bin_directories_non_existing_path() {
+        let non_existing_path = Path::new("/path/that/does/not/exist");
+        let result = find_bin_directories(non_existing_path);
+
+        assert_eq!(
+            result.len(),
+            0,
+            "Expected an empty vector when the path does not exist"
+        );
+    }
+    #[test]
+    fn test_find_bin_directories_root_level() {
+        let test_dir = Path::new("/tmp/test_directory");
+        let bin_dir = test_dir.join("bin");
+
+        // Create the test directory and the "bin" directory
+        std::fs::create_dir_all(&bin_dir).unwrap();
+
+        let result = find_bin_directories(&test_dir);
+
+        // Remove the test directory
+        std::fs::remove_dir_all(&test_dir).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], bin_dir);
+    }
+
+    #[test]
+    fn test_find_bin_directories_deeply_nested() {
+        let test_dir = Path::new("/tmp/test_files/deeply_nested_directory/something/");
+        let bin_dir = test_dir.join("bin");
+
+        // Create the test directory and the "bin" directory
+        std::fs::create_dir_all(&bin_dir).unwrap();
+
+        let result = find_bin_directories(&test_dir);
+
+        // Remove the test directory
+        std::fs::remove_dir_all(&test_dir).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], bin_dir);
+    }
 
     #[test]
     fn test_change_links_download_mirror_multiple_tools() {

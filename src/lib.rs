@@ -22,6 +22,7 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::Command,
+    sync::mpsc::Sender,
 };
 
 /// Creates an executable shell script with the given content and file path.
@@ -378,47 +379,50 @@ pub fn verify_file_checksum(expected_checksum: &str, file_path: &str) -> Result<
     Ok(computed_checksum == expected_checksum)
 }
 
-/// Asynchronously downloads a file from a given URL to a specified destination path.
+/// Sets up the environment variables required for the ESP-IDF build system.
 ///
-/// # Arguments
+/// # Parameters
 ///
-/// * `url` - A string representing the URL from which to download the file.
-/// * `destination_path` - A string representing the path to which the file should be downloaded.
-/// * `show_progress` - A function pointer to a function that will be called to show the progress of the download.
+/// * `tool_install_directory`: A reference to a `PathBuf` representing the directory where the ESP-IDF tools are installed.
+/// * `idf_path`: A reference to a `PathBuf` representing the path to the ESP-IDF framework directory.
 ///
-/// # Returns
+/// # Return
 ///
-/// * `Ok(())` if the file was successfully downloaded.
-/// * `Err(std::io::Error)` if an error occurred during the download process.
+/// * `Result<Vec<(String, String)>, String>`:
+///   - On success, returns a `Vec` of tuples containing the environment variable names and their corresponding values.
+///   - On error, returns a `String` describing the error.
 ///
-/// # Example
-///
-/// ```rust
-/// use std::io;
-/// use std::io::Write;
-/// use idf_im_lib::download_file;
-///
-/// fn download_progress_callback(downloaded: u64, total: u64) {
-///     let percentage = (downloaded as f64 / total as f64) * 100.0;
-///     print!("\rDownloading... {:.2}%", percentage);
-///     io::stdout().flush().unwrap();
-/// }
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let url = "https://example.com/file.zip";
-///     let destination_path = "/path/to/destination";
-///
-///     match download_file(url, destination_path, &download_progress_callback).await {
-///         Ok(()) => println!("\nDownload completed successfully"),
-///         Err(e) => eprintln!("Error during download: {}", e),
-///     }
-/// }
-/// ```
+pub fn setup_environment_variables(
+    tool_install_directory: &PathBuf,
+    idf_path: &PathBuf,
+) -> Result<Vec<(String, String)>, String> {
+    let mut env_vars = vec![];
+
+    // env::set_var("IDF_TOOLS_PATH", tool_install_directory);
+    let instal_dir_string = tool_install_directory.to_str().unwrap().to_string();
+    env_vars.push(("IDF_TOOLS_PATH".to_string(), instal_dir_string));
+    let idf_path_string = idf_path.to_str().unwrap().to_string();
+    env_vars.push(("IDF_PATH".to_string(), idf_path_string));
+
+    let python_env_path_string = tool_install_directory
+        .join("python")
+        .to_str()
+        .unwrap()
+        .to_string();
+    env_vars.push(("IDF_PYTHON_ENV_PATH".to_string(), python_env_path_string));
+
+    Ok(env_vars)
+}
+pub enum DownloadProgress {
+    Progress(u64, u64), // (downloaded, total)
+    Complete,
+    Error(String),
+}
+
 pub async fn download_file(
     url: &str,
     destination_path: &str,
-    show_progress: &dyn Fn(u64, u64),
+    progress_sender: Sender<DownloadProgress>,
 ) -> Result<(), std::io::Error> {
     // Create a new HTTP client
     let client = Client::new();
@@ -432,17 +436,26 @@ pub async fn download_file(
 
     // Get the total size of the file being downloaded
     let total_size = response.content_length().ok_or_else(|| {
+        let _ = progress_sender.send(DownloadProgress::Error(
+            "Failed to get content length".into(),
+        ));
         std::io::Error::new(std::io::ErrorKind::Other, "Failed to get content length")
     })?;
+    log::debug!("Downloading {} to {}", url, destination_path);
 
     // Extract the filename from the URL
     let filename = Path::new(&url).file_name().unwrap().to_str().unwrap();
-
+    log::debug!(
+        "Filename: {} and destination: {}",
+        filename,
+        destination_path
+    );
     // Create a new file at the specified destination path
     let mut file = File::create(Path::new(&destination_path).join(Path::new(filename)))?;
+    log::debug!("Created file at {}", destination_path);
 
     // Initialize the amount downloaded
-    let mut amount_downloaded: u64 = 0;
+    let mut downloaded: u64 = 0;
 
     // Download the file in chunks
     while let Some(chunk) = response
@@ -450,15 +463,22 @@ pub async fn download_file(
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
     {
+        log::trace!("Downloaded {}/{} bytes", downloaded, total_size);
         // Update the amount downloaded
-        amount_downloaded += chunk.len() as u64;
+        downloaded += chunk.len() as u64;
 
         // Write the chunk to the file
         file.write_all(&chunk)?;
 
         // Call the progress callback function
-        show_progress(amount_downloaded, total_size);
+        if let Err(e) = progress_sender.send(DownloadProgress::Progress(downloaded, total_size)) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to send progress: {}", e),
+            ));
+        }
     }
+    let _ = progress_sender.send(DownloadProgress::Complete);
 
     // Return Ok(()) if the download was successful
     Ok(())
@@ -749,6 +769,21 @@ pub fn run_idf_tools_using_rustpython(custom_path: &str) -> Result<String, std::
     }
 }
 
+/// Clones the ESP-IDF repository from the specified URL, tag, or branch,
+/// using the provided progress function for reporting cloning progress.
+///
+/// # Parameters
+///
+/// * `path`: A reference to a string representing the local path where the repository should be cloned.
+/// * `version`: A reference to a string representing the version of ESP-IDF to clone.
+/// * `mirror`: An optional reference to a string representing the URL of a mirror to use for cloning the repository.
+/// * `tx`: A `std::sync::mpsc::Sender<ProgressMessage>` object for sending progress messages.
+/// * `with_submodules`: A boolean indicating whether to clone the ESP-IDF repository with submodules.
+///
+/// # Return Value
+///
+/// * `Result<std::string::String, git2::Error>`: On success, returns a `Result` containing the path of the cloned repository as a string.
+///   On error, returns a `Result` containing a `git2::Error` indicating the cause of the error.
 pub fn get_esp_idf_by_version_and_mirror(
     path: &str,
     version: &str,
@@ -853,6 +888,60 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
         }
     } else {
         path.to_path_buf()
+    }
+}
+
+/// Performs post-installation tasks for a single version of ESP-IDF.
+///
+/// This function creates a desktop shortcut on Windows systems and generates an activation shell script
+/// for other operating systems. The desktop shortcut is created using the `create_desktop_shortcut` function,
+/// and the activation shell script is generated using the `create_activation_shell_script` function.
+///
+/// # Parameters
+///
+/// * `version_instalation_path`: A reference to a string representing the path where the ESP-IDF version is installed.
+/// * `idf_path`: A reference to a string representing the path to the ESP-IDF repository.
+/// * `idf_version`: A reference to a string representing the version of ESP-IDF being installed.
+/// * `tool_install_directory`: A reference to a string representing the directory where the ESP-IDF tools will be installed.
+/// * `export_paths`: A vector of strings representing the paths that need to be exported for the ESP-IDF tools.
+pub fn single_version_post_install(
+    version_instalation_path: &str,
+    idf_path: &str,
+    idf_version: &str,
+    tool_install_directory: &str,
+    export_paths: Vec<String>,
+) {
+    match std::env::consts::OS {
+        "windows" => {
+            // Creating desktop shortcut
+            if let Err(err) = create_desktop_shortcut(
+                version_instalation_path,
+                idf_path,
+                idf_version,
+                tool_install_directory,
+                export_paths,
+            ) {
+                error!(
+                    "{} {:?}",
+                    "Failed to create desktop shortcut",
+                    err.to_string()
+                )
+            } else {
+                info!("Desktop shortcut created successfully")
+            }
+        }
+        _ => {
+            let install_folder = PathBuf::from(version_instalation_path);
+            let install_path = install_folder.parent().unwrap().to_str().unwrap();
+            let _ = create_activation_shell_script(
+                // todo: handle error
+                install_path,
+                idf_path,
+                tool_install_directory,
+                idf_version,
+                export_paths,
+            );
+        }
     }
 }
 
