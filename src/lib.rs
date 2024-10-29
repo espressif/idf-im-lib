@@ -441,18 +441,18 @@ pub async fn download_file(
         ));
         std::io::Error::new(std::io::ErrorKind::Other, "Failed to get content length")
     })?;
-    log::info!("Downloading {} to {}", url, destination_path);
+    log::debug!("Downloading {} to {}", url, destination_path);
 
     // Extract the filename from the URL
     let filename = Path::new(&url).file_name().unwrap().to_str().unwrap();
-    log::info!(
+    log::debug!(
         "Filename: {} and destination: {}",
         filename,
         destination_path
     );
     // Create a new file at the specified destination path
     let mut file = File::create(Path::new(&destination_path).join(Path::new(filename)))?;
-    log::info!("Created file at {}", destination_path);
+    log::debug!("Created file at {}", destination_path);
 
     // Initialize the amount downloaded
     let mut downloaded: u64 = 0;
@@ -463,7 +463,7 @@ pub async fn download_file(
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
     {
-        log::info!("Downloaded {}/{} bytes", downloaded, total_size);
+        log::trace!("Downloaded {}/{} bytes", downloaded, total_size);
         // Update the amount downloaded
         downloaded += chunk.len() as u64;
 

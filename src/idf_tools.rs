@@ -364,7 +364,7 @@ pub fn get_tools_export_paths(
 ///
 /// * A vector of `PathBuf` instances representing the directories found.
 ///
-fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
+pub fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
     let mut result = Vec::new();
 
     if let Ok(entries) = fs::read_dir(path) {
