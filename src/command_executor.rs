@@ -1,3 +1,4 @@
+#[cfg(target_os = "windows")]
 use std::io::Write;
 use std::process::{Command, Output};
 

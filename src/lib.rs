@@ -789,7 +789,7 @@ fn shallow_clone(
         repo.set_head(&format!("refs/heads/{}", branch))?;
     };
 
-    if (recurse_submodules) {
+    if recurse_submodules {
         let mut sfo = FetchOptions::new();
         let mut callbacks = RemoteCallbacks::new();
         info!("Fetching submodules");
