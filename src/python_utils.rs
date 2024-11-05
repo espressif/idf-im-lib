@@ -3,7 +3,7 @@ use log::trace;
 use rustpython_vm as vm;
 #[cfg(feature = "userustpython")]
 use rustpython_vm::function::PosArgs;
-use std::env;
+#[cfg(feature = "userustpython")]
 use std::process::ExitCode;
 #[cfg(feature = "userustpython")]
 use vm::{builtins::PyStrRef, Interpreter};
