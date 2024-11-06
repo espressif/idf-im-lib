@@ -1,9 +1,10 @@
-{{env_var_pairs}}
-
 param(
     [Parameter(Mandatory=$false)]
     [switch]$e
 )
+
+{{env_var_pairs}}
+
 
 # Function to print environment variables
 function Print-EnvVariables {
@@ -22,7 +23,7 @@ if ($e) {
 # Set environment variables
 $env:ESP_IDF_VERSION = "{{idf_version}}"
 $env_var_pairs.GetEnumerator() | ForEach-Object {
-    $env:$($_.Key) = $_.Value
+    Set-Item -Path "env:$($_.Key)" -Value $_.Value
 }
 
 # Set system path
