@@ -21,7 +21,7 @@ if ($e) {
 
 # Set environment variables
 $env:ESP_IDF_VERSION = "{{idf_version}}"
-$config.GetEnumerator() | ForEach-Object {
+$env_var_pairs.GetEnumerator() | ForEach-Object {
     $env:$($_.Key) = $_.Value
 }
 
