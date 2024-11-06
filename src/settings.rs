@@ -116,7 +116,7 @@ impl Settings {
     ///
     /// This function returns a `Result` which is `Ok(())` on success or an error message as a `String` on failure.
     pub fn save_esp_ide_json(&self, file_path: &str) -> Result<(), String> {
-        let mut idf_installed = json!({});
+        let mut idf_installed = json!([]);
         if let Some(versions) = &self.idf_versions {
             for version in versions {
                 let id = format!("esp-idf-{}", Uuid::new_v4().to_string().replace("-", "")); //todo: use hash of path or something stable
@@ -148,13 +148,18 @@ impl Settings {
                         .join(format!("activate_idf_{}.sh", version)),
                 };
 
-                idf_installed[&id] = json!({
+                let idf_installed_entry = json!({
+                    "id": id,
                     "name": version,
                     "path": idf_path,
                     "python": python_path,
                     "idfToolsPath": tools_path,
                     "activationScript": activation_script,
                 });
+                idf_installed
+                    .as_array_mut()
+                    .unwrap()
+                    .push(idf_installed_entry);
             }
         }
 
