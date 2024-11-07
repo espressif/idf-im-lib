@@ -167,7 +167,7 @@ impl Settings {
 
         let esp_ide_json = json!({
           "gitPath": git_path.unwrap(),
-          "idfSelectedId": idf_installed.as_object().unwrap().keys().next().unwrap_or(&String::new()),
+          "idfSelectedId": idf_installed.as_array().unwrap()[0]["id"].as_str().unwrap_or(&String::new()),
           "idfInstalled": idf_installed,
       })
       .to_string();
