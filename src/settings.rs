@@ -55,7 +55,7 @@ impl Default for Settings {
             wizard_all_questions: Some(false),
             mirror: None,
             idf_mirror: None,
-            recurse_submodules: Some(false),
+            recurse_submodules: Some(true),
         }
     }
 }
