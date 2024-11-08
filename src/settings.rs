@@ -1,7 +1,6 @@
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::env::consts::OS;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
@@ -10,6 +9,7 @@ use uuid::Uuid;
 use crate::utils::get_git_path;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(default)] // This will use the Default implementation for any missing fields
 pub struct Settings {
     pub path: Option<PathBuf>,
     pub idf_path: Option<PathBuf>, // TOOD: These are actually multiple because of multiple version --> remove from config alltogether or changed it to computed property
@@ -30,7 +30,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let esp_idf_json_path_value = match OS {
+        let esp_idf_json_path_value = match std::env::consts::OS {
             "windows" => "C:\\Espressif\\tools".to_string(),
             _ => dirs::home_dir()
                 .unwrap()
