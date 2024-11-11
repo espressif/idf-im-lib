@@ -1,7 +1,7 @@
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -105,13 +105,23 @@ impl Settings {
         cfg.try_deserialize()
     }
 
-    pub fn save(&self, file_path: &str) -> Result<(), ConfigError> {
+    pub fn save(&self) -> Result<(), ConfigError> {
+        let mut save_path = self.config_file_save_path.clone().unwrap();
+        if save_path.is_dir() {
+            save_path = save_path.join("eim_config.toml");
+        } else {
+            if let Some(parent) = save_path.parent() {
+                if !parent.exists() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+            }
+        }
         let toml_value = toml::to_string(self).map_err(|e| ConfigError::Message(e.to_string()))?;
         let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
-            .open(file_path)
+            .open(save_path)
             .map_err(|e| ConfigError::Message(e.to_string()))?;
         file.write_all(toml_value.as_bytes())
             .map_err(|e| ConfigError::Message(e.to_string()))?;
