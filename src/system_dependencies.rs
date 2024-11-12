@@ -1,6 +1,6 @@
 use std::env;
 
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 use crate::command_executor;
 
@@ -291,33 +291,57 @@ fn install_scoop_package_manager() -> Result<(), String> {
                     return Err(String::from("Could not get scoop path"));
                 }
             };
-            // add_to_windows_path(&path_with_scoop).unwrap();
             add_to_path(&path_with_scoop).unwrap();
-            let _ = command_executor::execute_command(
-                "powershell",
-                &[
-                    "-Command",
-                    "Set-ExecutionPolicy  -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
-                ],
-            );
-            let output = command_executor::execute_command(
-              "powershell",
-              &[
-                    "-Command",
-                    "Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')",
-                ],
-            );
-            match output {
-                Ok(o) => {
-                    trace!("{}", String::from_utf8(o.stdout).unwrap());
-                    debug!("Successfully installed Scoop package manager. Adding to PATH");
-                    // #[cfg(windows)]
-                    // crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
-                    Ok(())
+            // let scoop_install_cmd = r#"$env:SCOOP="$HOME\scoop"; [Environment]::SetEnvironmentVariable('SCOOP', $env:SCOOP, 'User'); irm get.scoop.sh | iex"#;
+            let setup_commands = vec![
+                r#"Import-Module Microsoft.PowerShell.Security"#,
+                r#"Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force"#,
+                r#"$env:SCOOP="$HOME\scoop""#,
+                r#"[Environment]::SetEnvironmentVariable('SCOOP', $env:SCOOP, 'User')"#,
+                r#"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12"#,
+                r#"irm get.scoop.sh | iex"#,
+            ];
+            for cmd in setup_commands {
+                let output = crate::run_powershell_script(&cmd);
+                match output {
+                    Ok(o) => {
+                        trace!("output: {}", o);
+                    }
+                    Err(e) => {
+                        return Err(e.to_string());
+                    }
                 }
-                Err(e) => Err(e.to_string()),
             }
-        }
+            Ok(())
+        } //     let output = crate::run_powershell_script(&scoop_install_cmd);
+        //     // let _ = command_executor::execute_command(
+        //     //     "powershell",
+        //     //     &[
+        //     //         "-Command",
+        //     //         "Set-ExecutionPolicy  -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
+        //     //     ],
+        //     // );
+        //     // let output = command_executor::execute_command(
+        //     //   "powershell",
+        //     //   &[
+        //     //         "-Command",
+        //     //         "Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')",
+        //     //     ],
+        //     // );
+        //     match output {
+        //         Ok(o) => {
+        //             trace!("output: {}", o);
+        //             debug!("Successfully installed Scoop package manager. Adding to PATH");
+        //             // if o.status.success() {
+        //             //     debug!("Successfully installed Scoop package manager. Adding to PATH");
+        //             // } else {
+        //             //     debug!("Instalation of scoop failed failed: {:?}", o);
+        //             // }
+        //             Ok(())
+        //         }
+        //         Err(e) => Err(e.to_string()),
+        //     }
+        // }
         _ => {
             // this function should not be called on non-windows platforms
             debug!("Scoop package manager is only supported on Windows. Skipping installation.");
@@ -521,7 +545,40 @@ fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
             "windows" => format!("{};{}", new_path, paths),
             _ => format!("{}:{}", new_path, paths),
         };
-        env::set_var("PATH", new_path_string);
+
+        // Update current process PATH
+        env::set_var("PATH", &new_path_string);
+
+        if std::env::consts::OS == "windows" {
+            // PowerShell 7+ compatible command
+            let ps_command = format!(
+                "$oldPath = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
+               if (-not $oldPath.Contains('{}')) {{ \
+                   $newPath = '{}' + ';' + $oldPath; \
+                   [Environment]::SetEnvironmentVariable('PATH', $newPath, 'Machine'); \
+               }}",
+                new_path.replace("'", "''"),
+                new_path.replace("'", "''")
+            );
+
+            let res = command_executor::execute_command(
+                "powershell",
+                &["-NoProfile", "-NonInteractive", "-Command", &ps_command],
+            );
+
+            match res {
+                Ok(_) => {
+                    debug!("Added {} to PATH", new_path);
+                }
+                Err(e) => {
+                    warn!("Failed to add {} to PATH: {}", new_path, e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to update PATH: {}", e),
+                    ));
+                }
+            }
+        }
     }
 
     Ok(())
