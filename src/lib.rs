@@ -205,8 +205,12 @@ pub fn replace_unescaped_spaces_win(input: &str) -> String {
 pub fn run_powershell_script(script: &str) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
         "windows" => match command_executor::get_executor().run_script_from_string(script) {
-            Ok(output) => String::from_utf8(output.stdout)
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)),
+            Ok(output) => {
+                println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+                println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+                String::from_utf8(output.stdout)
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
             Err(err) => Err(err),
         },
         _ => {
