@@ -169,3 +169,12 @@ pub fn execute_command(command: &str, args: &[&str]) -> std::io::Result<Output> 
     let executor = get_executor();
     executor.execute(command, args)
 }
+
+pub fn execute_command_with_env(
+    command: &str,
+    args: &Vec<&str>,
+    env: Vec<(&str, &str)>,
+) -> std::io::Result<Output> {
+    let executor = get_executor();
+    executor.execute_with_env(command, args, env)
+}
