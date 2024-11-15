@@ -292,7 +292,8 @@ fn install_scoop_package_manager() -> Result<(), String> {
                 }
             };
             add_to_path(&path_with_scoop).unwrap();
-            let scoop_install_cmd = r#" [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; $env:SCOOP="$HOME\scoop"; [Environment]::SetEnvironmentVariable('SCOOP', $env:SCOOP, 'Machine'); irm get.scoop.sh | Invoke-Expression"#;
+            // let scoop_install_cmd = r#" [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; $env:SCOOP="$HOME\scoop"; [Environment]::SetEnvironmentVariable('SCOOP', $env:SCOOP, 'Machine'); irm get.scoop.sh | Invoke-Expression"#;
+            let scoop_install_cmd = include_str!("./../powershell_scripts/install_scoop.ps1");
             let output = crate::run_powershell_script(&scoop_install_cmd);
             // let _ = command_executor::execute_command(
             //     "powershell",
