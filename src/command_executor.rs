@@ -42,13 +42,15 @@ impl CommandExecutor for DefaultExecutor {
 #[cfg(target_os = "windows")]
 struct WindowsExecutor;
 
-#[cfg(target_os = "windows")]
-fn get_powershell_version() -> std::io::Result<i32> {
+pub fn get_powershell_version() -> std::io::Result<i32> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let output = Command::new("powershell")
-        .args(["-Command", "$PSVersionTable.PSVersion.Major"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()?;
+    let mut binding = Command::new("powershell");
+    let mut output = binding.args(["-Command", "$PSVersionTable.PSVersion.Major"]);
+
+    #[cfg(target_os = "windows")]
+    let output = output.creation_flags(CREATE_NO_WINDOW);
+
+    let output = output.output()?;
 
     let version = String::from_utf8_lossy(&output.stdout)
         .trim()

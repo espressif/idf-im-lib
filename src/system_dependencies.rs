@@ -466,8 +466,16 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                     }
                 };
                 debug!("Installing {} with scoop: {}", package, path_with_scoop);
+                let mut powershell_version = 5;
+                let mut main_command = "powershell";
+
+                powershell_version = command_executor::get_powershell_version().unwrap();
+
+                if powershell_version >= 7 {
+                    main_command = "pwsh";
+                }
                 let output = command_executor::execute_command_with_env(
-                    "pwsh",
+                    main_command,
                     &vec![
                         "-ExecutionPolicy",
                         "Bypass",
