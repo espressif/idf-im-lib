@@ -1,6 +1,6 @@
 use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
 use git2::{FetchOptions, ObjectType, RemoteCallbacks, Repository, SubmoduleUpdateOptions};
-use log::{error, info, warn};
+use log::{error, info, trace, warn};
 use reqwest::Client;
 #[cfg(feature = "userustpython")]
 use rustpython_vm::literal::char;
@@ -206,8 +206,8 @@ pub fn run_powershell_script(script: &str) -> Result<String, std::io::Error> {
     match std::env::consts::OS {
         "windows" => match command_executor::get_executor().run_script_from_string(script) {
             Ok(output) => {
-                println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-                println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+                trace!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+                trace!("stderr: {}", String::from_utf8_lossy(&output.stderr));
                 String::from_utf8(output.stdout)
                     .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
             }

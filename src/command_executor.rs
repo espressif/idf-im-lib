@@ -42,6 +42,22 @@ impl CommandExecutor for DefaultExecutor {
 #[cfg(target_os = "windows")]
 struct WindowsExecutor;
 
+/// Retrieves the major version number of PowerShell installed on the system.
+///
+/// This function executes a PowerShell command to fetch the major version number
+/// of the installed PowerShell. On Windows, it uses the CREATE_NO_WINDOW flag
+/// to prevent a console window from appearing during execution.
+///
+/// # Returns
+///
+/// Returns a `Result` containing:
+/// - `Ok(i32)`: The major version number of PowerShell if successfully retrieved.
+///   If parsing fails, it defaults to version 5.
+/// - `Err(std::io::Error)`: An error if the PowerShell command execution fails.
+///
+/// # Platform-specific behavior
+///
+/// On Windows, this function uses the CREATE_NO_WINDOW flag to suppress the console window.
 pub fn get_powershell_version() -> std::io::Result<i32> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     let mut binding = Command::new("powershell");

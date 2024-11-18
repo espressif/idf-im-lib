@@ -511,17 +511,17 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
 
 /// Adds a new directory to the system's PATH environment variable.
 ///
-/// This function checks if the new directory is already present in the PATH environment variable.
-/// If it is not present, the function appends the new directory to the PATH.
+/// This function appends the new directory to the current PATH if it's not already present.
+/// On Windows systems, it also updates the user's PATH environment variable persistently.
 ///
 /// # Parameters
 ///
-/// * `new_path` - A string representing the path of the new directory to be added to the PATH.
+/// * `new_path` - A string slice representing the new directory path to be added to the PATH.
 ///
 /// # Returns
 ///
-/// * `Ok(())` - If the new directory is successfully added to the PATH.
-/// * `Err(std::io::Error)` - If an error occurs while trying to add the new directory to the PATH.
+/// * `Ok(String)` - Returns the updated PATH string if the operation is successful.
+/// * `Err(std::io::Error)` - Returns an IO error if the PATH update fails on Windows systems.
 fn add_to_path(new_path: &str) -> Result<String, std::io::Error> {
     let binding = env::var_os("PATH").unwrap_or_default();
     let paths = binding.to_str().unwrap();
@@ -564,7 +564,6 @@ fn add_to_path(new_path: &str) -> Result<String, std::io::Error> {
             }
         }
     }
-    // }
 
     Ok(new_path_string)
 }
