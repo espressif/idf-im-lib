@@ -466,14 +466,20 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                     }
                 };
                 debug!("Installing {} with scoop: {}", package, path_with_scoop);
-                let mut powershell_version = 5;
                 let mut main_command = "powershell";
 
-                powershell_version = command_executor::get_powershell_version().unwrap();
-
-                if powershell_version >= 7 {
-                    main_command = "pwsh";
+                let test_for_pwsh = command_executor::execute_command("pwsh", &["--version"]);
+                match test_for_pwsh {
+                    // this needs to be used in powershell 7
+                    Ok(_) => {
+                        debug!("Found powershell core");
+                        main_command = "pwsh";
+                    }
+                    Err(_) => {
+                        debug!("Powershell core not found, using powershell");
+                    }
                 }
+
                 let output = command_executor::execute_command_with_env(
                     main_command,
                     &vec![
