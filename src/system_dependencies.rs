@@ -1,6 +1,6 @@
 use std::env;
 
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 use crate::command_executor;
 
@@ -291,28 +291,15 @@ fn install_scoop_package_manager() -> Result<(), String> {
                     return Err(String::from("Could not get scoop path"));
                 }
             };
-            // add_to_windows_path(&path_with_scoop).unwrap();
             add_to_path(&path_with_scoop).unwrap();
-            let _ = command_executor::execute_command(
-                "powershell",
-                &[
-                    "-Command",
-                    "Set-ExecutionPolicy  -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
-                ],
-            );
-            let output = command_executor::execute_command(
-              "powershell",
-              &[
-                    "-Command",
-                    "Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')",
-                ],
-            );
+            let scoop_install_cmd = include_str!("./../powershell_scripts/install_scoop.ps1");
+            let output = crate::run_powershell_script(&scoop_install_cmd);
+
             match output {
                 Ok(o) => {
-                    trace!("{}", String::from_utf8(o.stdout).unwrap());
+                    trace!("output: {}", o);
                     debug!("Successfully installed Scoop package manager. Adding to PATH");
-                    // #[cfg(windows)]
-                    // crate::win_tools::add_to_win_path(&path_with_scoop).unwrap();
+                    add_to_path(&path_with_scoop).unwrap();
                     Ok(())
                 }
                 Err(e) => Err(e.to_string()),
@@ -479,14 +466,43 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
                     }
                 };
                 debug!("Installing {} with scoop: {}", package, path_with_scoop);
-                let output = command_executor::execute_command(
-                    "powershell",
-                    &["-Command", "scoop", "install", &package],
+                let mut main_command = "powershell";
+
+                let test_for_pwsh = command_executor::execute_command("pwsh", &["--version"]);
+                match test_for_pwsh {
+                    // this needs to be used in powershell 7
+                    Ok(_) => {
+                        debug!("Found powershell core");
+                        main_command = "pwsh";
+                    }
+                    Err(_) => {
+                        debug!("Powershell core not found, using powershell");
+                    }
+                }
+
+                let output = command_executor::execute_command_with_env(
+                    main_command,
+                    &vec![
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        "scoop",
+                        "install",
+                        &package,
+                    ],
+                    vec![("PATH", &add_to_path(&path_with_scoop).unwrap())],
                 );
                 match output {
                     Ok(o) => {
-                        trace!("{}", String::from_utf8(o.stdout).unwrap());
-                        debug!("Successfully installed {:?}", package);
+                        if o.status.success() {
+                            trace!("{}", String::from_utf8(o.stdout).unwrap());
+                            debug!("Successfully installed {:?}", package);
+                        } else {
+                            let output = String::from_utf8(o.stdout).unwrap();
+                            let error_message = String::from_utf8(o.stderr).unwrap();
+                            debug!("Failed to install {}: {}", package, error_message);
+                            debug!("Output: {}", output);
+                        }
                     }
                     Err(e) => panic!("Failed to install {}: {}", package, e),
                 }
@@ -501,28 +517,59 @@ pub fn install_prerequisites(packages_list: Vec<String>) -> Result<(), String> {
 
 /// Adds a new directory to the system's PATH environment variable.
 ///
-/// This function checks if the new directory is already present in the PATH environment variable.
-/// If it is not present, the function appends the new directory to the PATH.
+/// This function appends the new directory to the current PATH if it's not already present.
+/// On Windows systems, it also updates the user's PATH environment variable persistently.
 ///
 /// # Parameters
 ///
-/// * `new_path` - A string representing the path of the new directory to be added to the PATH.
+/// * `new_path` - A string slice representing the new directory path to be added to the PATH.
 ///
 /// # Returns
 ///
-/// * `Ok(())` - If the new directory is successfully added to the PATH.
-/// * `Err(std::io::Error)` - If an error occurs while trying to add the new directory to the PATH.
-fn add_to_path(new_path: &str) -> Result<(), std::io::Error> {
+/// * `Ok(String)` - Returns the updated PATH string if the operation is successful.
+/// * `Err(std::io::Error)` - Returns an IO error if the PATH update fails on Windows systems.
+fn add_to_path(new_path: &str) -> Result<String, std::io::Error> {
     let binding = env::var_os("PATH").unwrap_or_default();
     let paths = binding.to_str().unwrap();
 
+    let new_path_string = match std::env::consts::OS {
+        "windows" => format!("{};{}", new_path, paths),
+        _ => format!("{}:{}", new_path, paths),
+    };
     if !paths.contains(new_path) {
-        let new_path_string = match std::env::consts::OS {
-            "windows" => format!("{};{}", new_path, paths),
-            _ => format!("{}:{}", new_path, paths),
-        };
-        env::set_var("PATH", new_path_string);
+        // Update current process PATH
+        env::set_var("PATH", &new_path_string);
+    }
+    if std::env::consts::OS == "windows" {
+        // PowerShell 7+ compatible command
+        let ps_command = format!(
+            "$oldPath = [Environment]::GetEnvironmentVariable('PATH', 'User'); \
+               if (-not $oldPath.Contains('{}')) {{ \
+                   $newPath = '{}' + ';' + $oldPath; \
+                   [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User'); \
+               }}",
+            new_path.replace("'", "''"),
+            new_path.replace("'", "''")
+        );
+
+        let res = command_executor::execute_command(
+            "powershell",
+            &["-NoProfile", "-NonInteractive", "-Command", &ps_command],
+        );
+
+        match res {
+            Ok(_) => {
+                debug!("Added {} to PATH", new_path);
+            }
+            Err(e) => {
+                warn!("Failed to add {} to PATH: {}", new_path, e);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to update PATH: {}", e),
+                ));
+            }
+        }
     }
 
-    Ok(())
+    Ok(new_path_string)
 }
