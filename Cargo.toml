@@ -29,3 +29,4 @@ tempfile = "3.2"
 rustpython-vm = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["freeze-stdlib"], optional = true }
 rustpython-stdlib = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["ssl-vendor"], optional = true }
 anyhow = "1.0.93"
+rust_search = "2.1.0"

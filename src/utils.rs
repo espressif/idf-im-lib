@@ -1,9 +1,8 @@
+use crate::command_executor::execute_command;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-
-use crate::command_executor::execute_command;
 
 /// This function retrieves the path to the git executable.
 ///

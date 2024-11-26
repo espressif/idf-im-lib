@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Context, Result};
 use config::{Config, ConfigError, File};
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -7,7 +8,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-use crate::ensure_path;
 use crate::idf_config::{IdfConfig, IdfInstallation};
 use crate::utils::get_git_path;
 
@@ -176,7 +176,7 @@ impl Settings {
     ///
     /// * `Result<(), String>` - Ok(()) if the operation is successful, or an Err with a string
     ///   description of the error if any step fails (e.g., file creation, writing, etc.).
-    pub fn save_esp_ide_json(&self, _file_path: &str) -> Result<(), String> {
+    pub fn save_esp_ide_json(&self, _file_path: &str) -> Result<()> {
         let mut idf_installations = Vec::new();
 
         if let Some(versions) = &self.idf_versions {
@@ -213,7 +213,7 @@ impl Settings {
             }
         }
 
-        let git_path = get_git_path().map_err(|e| e.to_string())?;
+        let git_path = get_git_path().map_err(|e| anyhow!("Failed to get git path. {}", e))?;
 
         let config = IdfConfig {
             git_path,
@@ -225,29 +225,9 @@ impl Settings {
             idf_installed: idf_installations,
         };
 
-        let config_json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-
         let tmp_path = PathBuf::from(self.esp_idf_json_path.clone().unwrap_or_default());
-        match ensure_path(tmp_path.to_str().unwrap()) {
-            Ok(_) => (),
-            Err(err) => {
-                error!("Failed to create ESP-IDF JSON directory: {}", err);
-                return Err(err.to_string());
-            }
-        };
 
         let ide_conf_path = tmp_path.join("esp_ide.json");
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(ide_conf_path)
-            .map_err(|e| e.to_string())?;
-
-        file.write_all(config_json.as_bytes())
-            .map_err(|e| e.to_string())?;
-
-        Ok(())
+        config.to_file(ide_conf_path, true)
     }
 }

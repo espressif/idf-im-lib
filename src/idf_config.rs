@@ -1,9 +1,12 @@
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::Path;
 
-#[derive(Debug, Serialize, Deserialize)]
+use crate::ensure_path;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IdfInstallation {
     pub activation_script: String,
     pub id: String,
@@ -14,7 +17,7 @@ pub struct IdfInstallation {
     pub python: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IdfConfig {
     #[serde(rename = "gitPath")]
     pub git_path: String,
@@ -25,6 +28,46 @@ pub struct IdfConfig {
 }
 
 impl IdfConfig {
+    /// Saves the configuration to a file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path where to save the configuration file
+    /// * `pretty` - If true, the JSON will be pretty-printed
+    ///
+    /// # Returns
+    ///
+    /// Returns `io::Result<()>` which is Ok if the file was successfully written
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let config = IdfConfig { ... };
+    /// config.to_file("esp_ide.json", true)?;
+    /// ```
+    pub fn to_file<P: AsRef<Path>>(&self, path: P, pretty: bool) -> Result<()> {
+        // Create parent directories if they don't exist
+        ensure_path(path.as_ref().parent().unwrap().to_str().unwrap());
+
+        // Convert to JSON string
+        let json_string = if pretty {
+            serde_json::to_string_pretty(self)
+        } else {
+            serde_json::to_string(self)
+        }
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        // Write to file
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+
+        file.write_all(json_string.as_bytes())
+            .with_context(|| anyhow!("writing to file esp_ide.json failed"))
+    }
+
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path)?;
         let config: IdfConfig = serde_json::from_str(&content)?;
