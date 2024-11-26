@@ -9,6 +9,7 @@ use tera::{Context, Tera};
 use utils::find_directories_by_name;
 
 pub mod command_executor;
+pub mod idf_config;
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
