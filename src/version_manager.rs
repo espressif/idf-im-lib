@@ -1,10 +1,12 @@
 use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use log::debug;
 use std::path::PathBuf;
 
 use log::warn;
 
+use crate::utils::remove_directory_all;
 use crate::{
     idf_config::{IdfConfig, IdfInstallation},
     settings::Settings,
@@ -69,6 +71,40 @@ pub fn rename_idf_version(identifier: &str, new_name: String) -> Result<String> 
     if res {
         ide_config.to_file(config_path, true)?;
         Ok(format!("Version {} renamed to {}", identifier, new_name))
+    } else {
+        Err(anyhow!("Version {} not installed", identifier))
+    }
+}
+
+pub fn remove_single_idf_version(identifier: &str) -> Result<String> {
+    let config_path = get_default_config_path();
+    let mut ide_config = IdfConfig::from_file(&config_path)?;
+    if let Some(installation) = ide_config
+        .idf_installed
+        .iter()
+        .find(|install| install.id == identifier || install.name == identifier)
+    {
+        let instalation_folder_path = PathBuf::from(installation.path.clone());
+        let instalation_folder = instalation_folder_path.parent().unwrap();
+        match remove_directory_all(&instalation_folder) {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(anyhow!("Failed to remove installation folder: {}", e));
+            }
+        }
+        match remove_directory_all(installation.clone().activation_script) {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(anyhow!("Failed to remove activation script: {}", e));
+            }
+        }
+        if ide_config.remove_installation(identifier) {
+            debug!("Removed installation from config file");
+        } else {
+            return Err(anyhow!("Failed to remove installation from config file"));
+        }
+        ide_config.to_file(config_path, true)?;
+        Ok(format!("Version {} removed", identifier))
     } else {
         Err(anyhow!("Version {} not installed", identifier))
     }

@@ -109,6 +109,28 @@ impl IdfConfig {
             false
         }
     }
+    /// Removes an IDF installation from the config using either name or id as identifier
+    /// Returns true if a matching installation was found and removed
+    /// If the removed installation was selected, clears the selected_id
+    pub fn remove_installation(&mut self, identifier: &str) -> bool {
+        if let Some(index) = self
+            .idf_installed
+            .iter()
+            .position(|install| install.id == identifier || install.name == identifier)
+        {
+            // If we're removing the currently selected installation, clear the selection
+            if self.idf_selected_id == self.idf_installed[index].id {
+                self.idf_selected_id.clear();
+                // TODO: prompt user to select a new installation if there are any left
+            }
+
+            // Remove the installation
+            self.idf_installed.remove(index);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 // Example usage function

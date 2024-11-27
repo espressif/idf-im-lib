@@ -1,6 +1,6 @@
 use crate::command_executor::execute_command;
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -55,4 +55,43 @@ pub fn find_directories_by_name(path: &Path, name: &str) -> Vec<PathBuf> {
     }
 
     result
+}
+
+pub fn remove_directory_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref();
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    // First ensure all contents are writable to handle readonly files
+    if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                fs::remove_dir_all(&path)?;
+            } else {
+                // On Windows, we need to ensure the file is writable before removal
+                #[cfg(windows)]
+                {
+                    let metadata = fs::metadata(&path)?;
+                    let mut permissions = metadata.permissions();
+                    permissions.set_readonly(false);
+                    fs::set_permissions(&path, permissions)?;
+                }
+                fs::remove_file(&path)?;
+            }
+        }
+    }
+
+    // Now remove the directory itself
+    if path.is_dir() {
+        fs::remove_dir_all(path)?;
+    } else {
+        fs::remove_file(path)?;
+    }
+
+    Ok(())
 }
