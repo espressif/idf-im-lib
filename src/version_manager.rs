@@ -46,4 +46,20 @@ pub fn get_selected_version() -> Option<IdfInstallation> {
     None
 }
 
-// pub fn select_idf_version(version: &str) -> Result<IdfInstallation> {}
+pub fn select_idf_version(selected_version_id: &str) -> Result<String> {
+    let config_path = get_default_config_path();
+    let mut ide_config = IdfConfig::from_file(&config_path)?;
+    if ide_config.idf_selected_id == selected_version_id {
+        return Ok("Version already selected".into());
+    }
+    let res = ide_config
+        .idf_installed
+        .iter()
+        .find(|v| v.id == selected_version_id);
+    if let Some(version) = res {
+        ide_config.idf_selected_id = selected_version_id.to_string();
+        ide_config.to_file(config_path, true)?;
+        return Ok(format!("Version {} selected", version.id));
+    }
+    Err(anyhow!("Version {} not installed", selected_version_id))
+}

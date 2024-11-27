@@ -8,6 +8,7 @@ use crate::ensure_path;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IdfInstallation {
+    #[serde(rename = "activationScript")]
     pub activation_script: String,
     pub id: String,
     #[serde(rename = "idfToolsPath")]
@@ -47,7 +48,7 @@ impl IdfConfig {
     /// ```
     pub fn to_file<P: AsRef<Path>>(&self, path: P, pretty: bool) -> Result<()> {
         // Create parent directories if they don't exist
-        ensure_path(path.as_ref().parent().unwrap().to_str().unwrap());
+        ensure_path(path.as_ref().parent().unwrap().to_str().unwrap())?;
 
         // Convert to JSON string
         let json_string = if pretty {
