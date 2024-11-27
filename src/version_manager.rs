@@ -31,6 +31,11 @@ pub fn get_installed_versions_from_config_file(
     Err(anyhow!("Config file not found"))
 }
 
+pub fn get_esp_ide_config() -> Result<IdfConfig> {
+    let config_path = get_default_config_path();
+    IdfConfig::from_file(&config_path)
+}
+
 pub fn get_selected_version() -> Option<IdfInstallation> {
     let config_path = get_default_config_path();
     let ide_config = IdfConfig::from_file(config_path).ok();
@@ -46,7 +51,7 @@ pub fn get_selected_version() -> Option<IdfInstallation> {
     None
 }
 
-pub fn select_idf_version(selected_version_id: &str) -> Result<String> {
+pub fn select_idf_version_by_id(selected_version_id: &str) -> Result<String> {
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
     if ide_config.idf_selected_id == selected_version_id {
@@ -62,4 +67,19 @@ pub fn select_idf_version(selected_version_id: &str) -> Result<String> {
         return Ok(format!("Version {} selected", version.id));
     }
     Err(anyhow!("Version {} not installed", selected_version_id))
+}
+
+pub fn select_idf_version_by_name(selected_version_name: &str) -> Result<String> {
+    let config_path = get_default_config_path();
+    let mut ide_config = IdfConfig::from_file(&config_path)?;
+    let res = ide_config
+        .idf_installed
+        .iter()
+        .find(|v| v.name == selected_version_name);
+    if let Some(version) = res {
+        ide_config.idf_selected_id = version.id.to_string();
+        ide_config.to_file(config_path, true)?;
+        return Ok(format!("Version {} selected", version.id));
+    }
+    Err(anyhow!("Version {} not installed", selected_version_name))
 }
