@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use anyhow::Context;
 use anyhow::Result;
 use std::path::PathBuf;
 
@@ -51,35 +52,24 @@ pub fn get_selected_version() -> Option<IdfInstallation> {
     None
 }
 
-pub fn select_idf_version_by_id(selected_version_id: &str) -> Result<String> {
+pub fn select_idf_version(identifier: &str) -> Result<String> {
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
-    if ide_config.idf_selected_id == selected_version_id {
-        return Ok("Version already selected".into());
-    }
-    let res = ide_config
-        .idf_installed
-        .iter()
-        .find(|v| v.id == selected_version_id);
-    if let Some(version) = res {
-        ide_config.idf_selected_id = selected_version_id.to_string();
+    if ide_config.select_installation(identifier) {
         ide_config.to_file(config_path, true)?;
-        return Ok(format!("Version {} selected", version.id));
+        return Ok(format!("Version {} selected", identifier));
     }
-    Err(anyhow!("Version {} not installed", selected_version_id))
+    Err(anyhow!("Version {} not installed", identifier))
 }
 
-pub fn select_idf_version_by_name(selected_version_name: &str) -> Result<String> {
+pub fn rename_idf_version(identifier: &str, new_name: String) -> Result<String> {
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
-    let res = ide_config
-        .idf_installed
-        .iter()
-        .find(|v| v.name == selected_version_name);
-    if let Some(version) = res {
-        ide_config.idf_selected_id = version.id.to_string();
+    let res = ide_config.update_installation_name(identifier, new_name.to_string());
+    if res {
         ide_config.to_file(config_path, true)?;
-        return Ok(format!("Version {} selected", version.id));
+        Ok(format!("Version {} renamed to {}", identifier, new_name))
+    } else {
+        Err(anyhow!("Version {} not installed", identifier))
     }
-    Err(anyhow!("Version {} not installed", selected_version_name))
 }

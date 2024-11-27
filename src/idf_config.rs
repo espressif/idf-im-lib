@@ -81,6 +81,34 @@ impl IdfConfig {
             .iter()
             .find(|install| install.id == self.idf_selected_id)
     }
+    // Updates the name of an IDF installation identified by either name or id
+    /// Returns true if a matching installation was found and updated
+    pub fn update_installation_name(&mut self, identifier: &str, new_name: String) -> bool {
+        if let Some(installation) = self
+            .idf_installed
+            .iter_mut()
+            .find(|install| install.id == identifier || install.name == identifier)
+        {
+            installation.name = new_name;
+            true
+        } else {
+            false
+        }
+    }
+    /// Changes the currently selected IDF version using either name or id as identifier
+    /// Returns true if a matching installation was found and selected
+    pub fn select_installation(&mut self, identifier: &str) -> bool {
+        if let Some(installation) = self
+            .idf_installed
+            .iter()
+            .find(|install| install.id == identifier || install.name == identifier)
+        {
+            self.idf_selected_id = installation.id.clone();
+            true
+        } else {
+            false
+        }
+    }
 }
 
 // Example usage function
