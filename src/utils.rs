@@ -1,6 +1,9 @@
-use crate::command_executor::execute_command;
+use crate::{command_executor::execute_command, idf_tools::read_and_parse_tools_file};
+use rust_search::SearchBuilder;
 use std::{
+    collections::HashSet,
     fs, io,
+    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
 };
 
@@ -38,23 +41,96 @@ pub fn get_git_path() -> Result<String, String> {
 // Finds all directories in the specified path that match the given name.
 // The function recursively searches subdirectories and collects matching paths in a vector.
 // Returns a vector of PathBuf containing the paths of matching directories.
-pub fn find_directories_by_name(path: &Path, name: &str) -> Vec<PathBuf> {
-    let mut result = Vec::new();
+pub fn find_directories_by_name(path: &Path, name: &str) -> Vec<String> {
+    let search: Vec<String> = SearchBuilder::default()
+        .location(path)
+        .search_input(name)
+        // .limit(1000) // results to return
+        .strict()
+        // .depth(1)
+        .ignore_case()
+        .hidden()
+        .build()
+        .collect();
+    filter_subpaths(search)
+}
 
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if path.file_name().and_then(|n| n.to_str()) == Some(name) {
-                    result.push(path.clone());
+pub fn is_valid_idf_directory(path: &str) -> bool {
+    let path = PathBuf::from(path);
+    let tools_path = path.join("tools");
+    let tools_json_path = tools_path.join("tools.json");
+    if !tools_json_path.exists() {
+        return false;
+    }
+    match read_and_parse_tools_file(tools_json_path.to_str().unwrap()) {
+        Ok(_) => {
+            return true;
+        }
+        Err(_) => {
+            return false;
+        }
+    }
+}
+
+pub fn filter_duplicate_paths(paths: Vec<String>) -> Vec<String> {
+    let mut result = Vec::new();
+    match std::env::consts::OS {
+        "windows" => {
+            let mut seen = HashSet::new();
+            for path in paths {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    let key = format!("{:?}-{:?}", metadata.modified().ok(), metadata.len());
+
+                    if seen.insert(key) {
+                        result.push(path);
+                    }
                 } else {
-                    result.extend(find_directories_by_name(&path, name));
+                    result.push(path);
+                }
+            }
+        }
+        _ => {
+            let mut seen = HashSet::new();
+            for path in paths {
+                // Get the metadata for the path
+                if let Ok(metadata) = fs::metadata(&path) {
+                    // Create a tuple of device ID and inode number
+                    let file_id = (metadata.dev(), metadata.ino());
+
+                    // Only keep the path if we haven't seen this file_id before
+                    if seen.insert(file_id) {
+                        result.push(path);
+                    }
+                } else {
+                    // If we can't get metadata, keep the original path
+                    result.push(path);
                 }
             }
         }
     }
 
     result
+}
+
+fn filter_subpaths(paths: Vec<String>) -> Vec<String> {
+    let mut filtered = Vec::new();
+
+    'outer: for path in paths {
+        // Check if this path is a subpath of any already filtered path
+        for other in &filtered {
+            if path.starts_with(other) {
+                continue 'outer;
+            }
+        }
+
+        // Remove any previously added paths that are subpaths of this one
+        filtered.retain(|other: &String| !other.starts_with(&path));
+
+        // Add this path
+        filtered.push(path);
+    }
+
+    filtered
 }
 
 pub fn remove_directory_all<P: AsRef<Path>>(path: P) -> io::Result<()> {

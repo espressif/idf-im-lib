@@ -1,8 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use config::{Config, ConfigError, File};
-use log::error;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;

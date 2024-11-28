@@ -343,7 +343,7 @@ pub fn get_tools_export_paths(
         });
     }
     for bin_dir in bin_dirs {
-        let str_p = bin_dir.to_str().unwrap().to_string();
+        let str_p = bin_dir;
         if paths.contains(&str_p) {
             log::trace!("Skipping duplicate export path: {}", str_p);
         } else {
@@ -365,7 +365,7 @@ pub fn get_tools_export_paths(
 ///
 /// * A vector of `PathBuf` instances representing the directories found.
 ///
-pub fn find_bin_directories(path: &Path) -> Vec<PathBuf> {
+pub fn find_bin_directories(path: &Path) -> Vec<String> {
     let result = find_directories_by_name(path, "bin");
 
     result
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn test_find_bin_directories_root_level() {
         let test_dir = Path::new("/tmp/test_directory");
-        let bin_dir = test_dir.join("bin");
+        let bin_dir = test_dir.join("bin").to_string_lossy().to_string();
 
         // Create the test directory and the "bin" directory
         std::fs::create_dir_all(&bin_dir).unwrap();
@@ -412,7 +412,7 @@ mod tests {
     #[test]
     fn test_find_bin_directories_deeply_nested() {
         let test_dir = Path::new("/tmp/test_files/deeply_nested_directory/something/");
-        let bin_dir = test_dir.join("bin");
+        let bin_dir = test_dir.join("bin").to_string_lossy().to_string();
 
         // Create the test directory and the "bin" directory
         std::fs::create_dir_all(&bin_dir).unwrap();

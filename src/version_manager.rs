@@ -1,7 +1,7 @@
 use anyhow::anyhow;
-use anyhow::Context;
 use anyhow::Result;
 use log::debug;
+use std::path::Path;
 use std::path::PathBuf;
 
 use log::warn;
@@ -76,6 +76,7 @@ pub fn rename_idf_version(identifier: &str, new_name: String) -> Result<String> 
     }
 }
 
+// todo: also purge the PATH
 pub fn remove_single_idf_version(identifier: &str) -> Result<String> {
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
@@ -108,4 +109,17 @@ pub fn remove_single_idf_version(identifier: &str) -> Result<String> {
     } else {
         Err(anyhow!("Version {} not installed", identifier))
     }
+}
+
+pub fn find_esp_idf_folders(path: &str) -> Vec<String> {
+    let path = Path::new(path);
+    let mut dirs = crate::utils::find_directories_by_name(&path, "esp-idf");
+    dirs.sort();
+    dirs.reverse();
+    let filtered_dirs = crate::utils::filter_duplicate_paths(dirs.clone());
+    filtered_dirs
+        .iter()
+        .filter(|p| crate::utils::is_valid_idf_directory(p))
+        .cloned()
+        .collect()
 }
