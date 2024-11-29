@@ -55,6 +55,19 @@ pub fn find_directories_by_name(path: &Path, name: &str) -> Vec<String> {
     filter_subpaths(search)
 }
 
+/// Checks if the given path is a valid ESP-IDF directory.
+///
+/// # Purpose
+///
+/// This function verifies if the specified directory contains a valid ESP-IDF setup by checking for the existence of the "tools.json" file in the "tools" subdirectory.
+///
+/// # Parameters
+///
+/// - `path`: A reference to a string representing the path to be checked.
+///
+/// # Return Value
+///
+/// - `bool`: Returns `true` if the specified path is a valid ESP-IDF directory, and `false` otherwise.
 pub fn is_valid_idf_directory(path: &str) -> bool {
     let path = PathBuf::from(path);
     let tools_path = path.join("tools");
@@ -72,6 +85,20 @@ pub fn is_valid_idf_directory(path: &str) -> bool {
     }
 }
 
+/// Filters out duplicate paths from a vector of strings.
+///
+/// This function checks for duplicate paths in the input vector and removes them.
+/// It uses different strategies based on the operating system:
+/// - On Windows, it compares the modification time and size of each file to identify duplicates.
+/// - On Unix-like systems, it uses the device ID and inode number to identify duplicates.
+///
+/// # Parameters
+///
+/// - `paths`: A vector of strings representing file paths.
+///
+/// # Return Value
+///
+/// - A vector of strings containing the unique paths from the input vector.
 pub fn filter_duplicate_paths(paths: Vec<String>) -> Vec<String> {
     let mut result = Vec::new();
     match std::env::consts::OS {
@@ -112,6 +139,19 @@ pub fn filter_duplicate_paths(paths: Vec<String>) -> Vec<String> {
     result
 }
 
+/// Filters out subpaths from a vector of strings.
+///
+/// This function checks for subpaths in the input vector and removes them.
+/// It ensures that only the highest-level paths are retained.
+///
+/// # Parameters
+///
+/// - `paths`: A vector of strings representing file paths.
+///
+/// # Return Value
+///
+/// - A vector of strings containing the highest-level paths from the input vector.
+///   Subpaths are removed, and only the highest-level paths are retained.
 fn filter_subpaths(paths: Vec<String>) -> Vec<String> {
     let mut filtered = Vec::new();
 
@@ -133,6 +173,19 @@ fn filter_subpaths(paths: Vec<String>) -> Vec<String> {
     filtered
 }
 
+/// Removes a directory and all its contents recursively.
+///
+/// This function attempts to remove a directory and all its contents, including subdirectories and files.
+/// It handles cases where the directory or files are read-only on Windows.
+///
+/// # Parameters
+///
+/// - `path`: A reference to a type that implements the `AsRef<Path>` trait, representing the path to the directory to be removed.
+///
+/// # Return Value
+///
+/// - `io::Result<()>`: If the directory and its contents are successfully removed, the function returns `Ok(())`.
+///   If an error occurs during the process, the function returns an `io::Error` containing the specific error details.
 pub fn remove_directory_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref();
 

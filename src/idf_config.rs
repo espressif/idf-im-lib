@@ -69,6 +69,23 @@ impl IdfConfig {
             .with_context(|| anyhow!("writing to file esp_ide.json failed"))
     }
 
+    /// Reads and parses an IDF configuration from a file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - A value that can be converted into a Path, representing the location of the configuration file.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the parsed `IdfConfig` if successful, or an error if the file
+    /// cannot be read or parsed.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The file cannot be read
+    /// - The file contents cannot be parsed as valid JSON
+    /// - The JSON structure does not match the `IdfConfig` structure
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path)?;
         let config: IdfConfig = serde_json::from_str(&content)?;
@@ -81,8 +98,22 @@ impl IdfConfig {
             .iter()
             .find(|install| install.id == self.idf_selected_id)
     }
-    // Updates the name of an IDF installation identified by either name or id
-    /// Returns true if a matching installation was found and updated
+
+    /// Updates the name of an IDF installation in the configuration.
+    ///
+    /// This function searches for an installation matching the given identifier
+    /// (either by ID or name) and updates its name to the provided new name.
+    ///
+    /// # Arguments
+    ///
+    /// * `identifier` - A string slice that holds the ID or current name of the installation to update.
+    /// * `new_name` - A String that will be set as the new name for the matched installation.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean:
+    /// * `true` if an installation was found and its name was updated.
+    /// * `false` if no matching installation was found.
     pub fn update_installation_name(&mut self, identifier: &str, new_name: String) -> bool {
         if let Some(installation) = self
             .idf_installed
@@ -95,8 +126,21 @@ impl IdfConfig {
             false
         }
     }
-    /// Changes the currently selected IDF version using either name or id as identifier
-    /// Returns true if a matching installation was found and selected
+
+    /// Selects an IDF installation in the configuration.
+    ///
+    /// This function searches for an installation matching the given identifier
+    /// (either by ID or name) and sets it as the selected installation.
+    ///
+    /// # Arguments
+    ///
+    /// * `identifier` - A string slice that holds the ID or name of the installation to select.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean:
+    /// * `true` if a matching installation was found and selected.
+    /// * `false` if no matching installation was found.
     pub fn select_installation(&mut self, identifier: &str) -> bool {
         if let Some(installation) = self
             .idf_installed
@@ -109,9 +153,22 @@ impl IdfConfig {
             false
         }
     }
-    /// Removes an IDF installation from the config using either name or id as identifier
-    /// Returns true if a matching installation was found and removed
-    /// If the removed installation was selected, clears the selected_id
+
+    /// Removes an IDF installation from the configuration.
+    ///
+    /// This function searches for an installation matching the given identifier
+    /// (either by ID or name) and removes it from the list of installed IDFs.
+    /// If the removed installation was the currently selected one, it clears the selection.
+    ///
+    /// # Arguments
+    ///
+    /// * `identifier` - A string slice that holds the ID or name of the installation to remove.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean:
+    /// * `true` if a matching installation was found and removed.
+    /// * `false` if no matching installation was found.
     pub fn remove_installation(&mut self, identifier: &str) -> bool {
         if let Some(index) = self
             .idf_installed
@@ -133,7 +190,6 @@ impl IdfConfig {
     }
 }
 
-// Example usage function
 pub fn parse_idf_config<P: AsRef<Path>>(path: P) -> Result<IdfConfig> {
     IdfConfig::from_file(path)
 }

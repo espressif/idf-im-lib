@@ -12,6 +12,15 @@ use crate::{
     settings::Settings,
 };
 
+/// Returns the default path to the ESP-IDF configuration file.
+///
+/// The default path is constructed by joining the `esp_idf_json_path` setting from the `Settings` struct
+/// with the filename "esp_ide.json". If `esp_idf_json_path` is not set, the default path will be
+/// constructed using the default settings.
+///
+/// # Returns
+///
+/// A `PathBuf` representing the default path to the ESP-IDF configuration file.
 fn get_default_config_path() -> PathBuf {
     let default_settings = Settings::default();
     PathBuf::from(default_settings.esp_idf_json_path.unwrap_or_default()).join("esp_ide.json")
@@ -24,6 +33,17 @@ pub fn list_installed_versions() -> Result<Vec<IdfInstallation>> {
     get_installed_versions_from_config_file(&config_path)
 }
 
+/// Retrieves a list of installed ESP-IDF versions from the specified configuration file.
+///
+/// # Parameters
+///
+/// * `config_path` - A reference to a `PathBuf` representing the path to the ESP-IDF configuration file.
+///
+/// # Returns
+///
+/// * `Result<Vec<IdfInstallation>, anyhow::Error>` - On success, returns a `Result` containing a vector of
+///   `IdfInstallation` structs representing the installed ESP-IDF versions. On error, returns an `anyhow::Error`
+///   with a description of the error.
 pub fn get_installed_versions_from_config_file(
     config_path: &PathBuf,
 ) -> Result<Vec<IdfInstallation>> {
@@ -34,11 +54,21 @@ pub fn get_installed_versions_from_config_file(
     Err(anyhow!("Config file not found"))
 }
 
-pub fn get_esp_ide_config() -> Result<IdfConfig> {
-    let config_path = get_default_config_path();
-    IdfConfig::from_file(&config_path)
-}
-
+/// Retrieves the selected ESP-IDF installation from the configuration file.
+///
+/// This function reads the ESP-IDF configuration from the default location specified by the
+/// `get_default_config_path` function and returns the selected installation. If no installation is
+/// selected, it logs a warning and returns `None`.
+///
+/// # Parameters
+///
+/// None.
+///
+/// # Returns
+///
+/// * `Option<IdfInstallation>` - Returns `Some(IdfInstallation)` if a selected installation is found in the
+///   configuration file. Returns `None` if no installation is selected or if an error occurs while reading
+///   the configuration file.
 pub fn get_selected_version() -> Option<IdfInstallation> {
     let config_path = get_default_config_path();
     let ide_config = IdfConfig::from_file(config_path).ok();
@@ -53,7 +83,40 @@ pub fn get_selected_version() -> Option<IdfInstallation> {
     }
     None
 }
+/// Retrieves the ESP-IDF configuration from the default location.
+///
+/// This function reads the ESP-IDF configuration from the default location specified by the
+/// `get_default_config_path` function. The configuration is then returned as an `IdfConfig` struct.
+///
+/// # Parameters
+///
+/// None.
+///
+/// # Returns
+///
+/// * `Result<IdfConfig, anyhow::Error>` - On success, returns a `Result` containing the `IdfConfig` struct
+///   representing the ESP-IDF configuration. On error, returns an `anyhow::Error` with a description of the error.
+pub fn get_esp_ide_config() -> Result<IdfConfig> {
+    let config_path = get_default_config_path();
+    IdfConfig::from_file(&config_path)
+}
 
+/// Selects the specified ESP-IDF version by updating the configuration file.
+///
+/// This function reads the ESP-IDF configuration from the default location, selects the installation
+/// with the given identifier, and updates the configuration file. If the installation is successfully
+/// selected, the function returns a `Result` containing a success message. If the installation is not
+/// found in the configuration file, the function returns an error.
+///
+/// # Parameters
+///
+/// * `identifier` - A reference to a string representing the identifier of the ESP-IDF version to select.
+///   The identifier can be either the version number or the name of the installation.
+///
+/// # Returns
+///
+/// * `Result<String, anyhow::Error>` - On success, returns a `Result` containing a string message indicating
+///   that the version has been selected. On error, returns an `anyhow::Error` with a description of the error.
 pub fn select_idf_version(identifier: &str) -> Result<String> {
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
@@ -64,6 +127,24 @@ pub fn select_idf_version(identifier: &str) -> Result<String> {
     Err(anyhow!("Version {} not installed", identifier))
 }
 
+/// Renames the specified ESP-IDF version in the configuration file.
+///
+/// This function reads the ESP-IDF configuration from the default location, updates the name of the
+/// installation with the given identifier, and saves the updated configuration file. If the installation
+/// is successfully renamed, the function returns a `Result` containing a success message. If the
+/// installation is not found in the configuration file, the function returns an error.
+///
+/// # Parameters
+///
+/// * `identifier` - A reference to a string representing the identifier of the ESP-IDF version to rename.
+///   The identifier can be either the version number or the name of the installation.
+///
+/// * `new_name` - A string representing the new name for the ESP-IDF version.
+///
+/// # Returns
+///
+/// * `Result<String, anyhow::Error>` - On success, returns a `Result` containing a string message indicating
+///   that the version has been renamed. On error, returns an `anyhow::Error` with a description of the error.
 pub fn rename_idf_version(identifier: &str, new_name: String) -> Result<String> {
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
@@ -76,8 +157,24 @@ pub fn rename_idf_version(identifier: &str, new_name: String) -> Result<String> 
     }
 }
 
-// todo: also purge the PATH
+/// Removes a single ESP-IDF version from the configuration file and its associated directories.
+///
+/// This function reads the ESP-IDF configuration from the default location, removes the installation
+/// with the given identifier, and purges the installation directory and activation script. If the
+/// installation is successfully removed, the function returns a `Result` containing a success message.
+/// If the installation is not found in the configuration file, the function returns an error.
+///
+/// # Parameters
+///
+/// * `identifier` - A reference to a string representing the identifier of the ESP-IDF version to remove.
+///   The identifier can be either the version number or the name of the installation.
+///
+/// # Returns
+///
+/// * `Result<String, anyhow::Error>` - On success, returns a `Result` containing a string message indicating
+///   that the version has been removed. On error, returns an `anyhow::Error` with a description of the error.
 pub fn remove_single_idf_version(identifier: &str) -> Result<String> {
+    //TODO: remove also from path
     let config_path = get_default_config_path();
     let mut ide_config = IdfConfig::from_file(&config_path)?;
     if let Some(installation) = ide_config
@@ -85,9 +182,9 @@ pub fn remove_single_idf_version(identifier: &str) -> Result<String> {
         .iter()
         .find(|install| install.id == identifier || install.name == identifier)
     {
-        let instalation_folder_path = PathBuf::from(installation.path.clone());
-        let instalation_folder = instalation_folder_path.parent().unwrap();
-        match remove_directory_all(&instalation_folder) {
+        let installation_folder_path = PathBuf::from(installation.path.clone());
+        let installation_folder = installation_folder_path.parent().unwrap();
+        match remove_directory_all(&installation_folder) {
             Ok(_) => {}
             Err(e) => {
                 return Err(anyhow!("Failed to remove installation folder: {}", e));
@@ -111,6 +208,19 @@ pub fn remove_single_idf_version(identifier: &str) -> Result<String> {
     }
 }
 
+/// Finds ESP-IDF folders within the specified directory and its subdirectories.
+///
+/// This function searches for directories named "esp-idf" within the given path and its subdirectories.
+/// It returns a vector of absolute paths to the found directories, sorted in descending order.
+///
+/// # Parameters
+///
+/// * `path` - A reference to a string representing the root directory to search for ESP-IDF folders.
+///
+/// # Returns
+///
+/// * `Vec<String>` - A vector of strings representing the absolute paths to the found ESP-IDF folders.
+///   The vector is sorted in descending order.
 pub fn find_esp_idf_folders(path: &str) -> Vec<String> {
     let path = Path::new(path);
     let mut dirs = crate::utils::find_directories_by_name(&path, "esp-idf");
