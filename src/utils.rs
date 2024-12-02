@@ -1,12 +1,12 @@
 use crate::{command_executor::execute_command, idf_tools::read_and_parse_tools_file};
 use rust_search::SearchBuilder;
+#[cfg(not(windows))]
+use std::os::unix::fs::MetadataExt;
 use std::{
     collections::HashSet,
     fs, io,
-    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
 };
-
 /// This function retrieves the path to the git executable.
 ///
 /// # Purpose
@@ -117,7 +117,9 @@ pub fn filter_duplicate_paths(paths: Vec<String>) -> Vec<String> {
             }
         }
         _ => {
+            #[cfg(not(windows))]
             let mut seen = HashSet::new();
+            #[cfg(not(windows))]
             for path in paths {
                 // Get the metadata for the path
                 if let Ok(metadata) = fs::metadata(&path) {
