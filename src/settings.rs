@@ -213,7 +213,7 @@ impl Settings {
 
         let git_path = get_git_path().map_err(|e| anyhow!("Failed to get git path. {}", e))?;
 
-        let config = IdfConfig {
+        let mut config = IdfConfig {
             git_path,
             idf_selected_id: idf_installations
                 .first()

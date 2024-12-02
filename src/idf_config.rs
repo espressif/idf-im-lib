@@ -46,7 +46,7 @@ impl IdfConfig {
     /// let config = IdfConfig { ... };
     /// config.to_file("esp_ide.json", true)?;
     /// ```
-    pub fn to_file<P: AsRef<Path>>(&self, path: P, pretty: bool) -> Result<()> {
+    pub fn to_file<P: AsRef<Path>>(&mut self, path: P, pretty: bool) -> Result<()> {
         // Create parent directories if they don't exist
         ensure_path(path.as_ref().parent().unwrap().to_str().unwrap())?;
 
@@ -58,7 +58,11 @@ impl IdfConfig {
         }
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        // Write to file
+        if path.as_ref().exists() {
+            let existing_config = IdfConfig::from_file(path.as_ref())?;
+            let existing_version = existing_config.idf_installed;
+            self.idf_installed.extend(existing_version);
+        }
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
