@@ -15,7 +15,7 @@ use crate::{
 /// Returns the default path to the ESP-IDF configuration file.
 ///
 /// The default path is constructed by joining the `esp_idf_json_path` setting from the `Settings` struct
-/// with the filename "esp_ide.json". If `esp_idf_json_path` is not set, the default path will be
+/// with the filename "eim_idf.json". If `esp_idf_json_path` is not set, the default path will be
 /// constructed using the default settings.
 ///
 /// # Returns
@@ -23,7 +23,7 @@ use crate::{
 /// A `PathBuf` representing the default path to the ESP-IDF configuration file.
 fn get_default_config_path() -> PathBuf {
     let default_settings = Settings::default();
-    PathBuf::from(default_settings.esp_idf_json_path.unwrap_or_default()).join("esp_ide.json")
+    PathBuf::from(default_settings.esp_idf_json_path.unwrap_or_default()).join("eim_idf.json")
 }
 
 // todo: add optional path parameter enabling the user to specify a custom config file

@@ -44,7 +44,7 @@ impl IdfConfig {
     ///
     /// ```rust
     /// let config = IdfConfig { ... };
-    /// config.to_file("esp_ide.json", true)?;
+    /// config.to_file("eim_idf.json", true)?;
     /// ```
     pub fn to_file<P: AsRef<Path>>(&mut self, path: P, pretty: bool) -> Result<()> {
         // Create parent directories if they don't exist
@@ -70,7 +70,7 @@ impl IdfConfig {
             .open(path)?;
 
         file.write_all(json_string.as_bytes())
-            .with_context(|| anyhow!("writing to file esp_ide.json failed"))
+            .with_context(|| anyhow!("writing to file eim_idf.json failed"))
     }
 
     /// Reads and parses an IDF configuration from a file.
