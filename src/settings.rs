@@ -225,7 +225,7 @@ impl Settings {
 
         let tmp_path = PathBuf::from(self.esp_idf_json_path.clone().unwrap_or_default());
 
-        let ide_conf_path = tmp_path.join("esp_ide.json");
+        let ide_conf_path = tmp_path.join("eim_idf.json");
         config.to_file(ide_conf_path, true)
     }
 }
