@@ -1,11 +1,12 @@
+use anyhow::{anyhow, Result};
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use uuid::Uuid;
 
+use crate::idf_config::{IdfConfig, IdfInstallation};
 use crate::utils::get_git_path;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -158,84 +159,73 @@ impl Settings {
         }
     }
 
-    /// Saves the ESP IDE configuration as a JSON file to the specified file path.
+    /// Saves ESP-IDF configuration to a JSON file.
     ///
-    /// This function collects information about the installed ESP-IDF versions, including paths to various tools
-    /// and scripts associated with each version. It then constructs a JSON object containing these details and writes
-    /// it to a file. If any errors occur during the process, a `Result` with an error message is returned.
+    /// This function generates and saves a JSON configuration file for ESP-IDF installations.
+    /// It creates IDF installation entries for each version specified in the settings,
+    /// including paths for Python, tools, and activation scripts.
     ///
-    /// # Arguments
+    /// # Parameters
     ///
-    /// * `file_path`: A string slice that holds the path where the JSON file will be saved.
+    /// * `&self` - A reference to the `Settings` instance.
+    /// * `_file_path` - Unused parameter, kept for backward compatibility. TODO: remove
     ///
     /// # Returns
     ///
-    /// This function returns a `Result` which is `Ok(())` on success or an error message as a `String` on failure.
-    pub fn save_esp_ide_json(&self, file_path: &str) -> Result<(), String> {
-        let mut idf_installed = json!([]);
+    /// * `Result<(), String>` - Ok(()) if the operation is successful, or an Err with a string
+    ///   description of the error if any step fails (e.g., file creation, writing, etc.).
+    pub fn save_esp_ide_json(&self, _file_path: &str) -> Result<()> {
+        let mut idf_installations = Vec::new();
+
         if let Some(versions) = &self.idf_versions {
             for version in versions {
-                let id = format!("esp-idf-{}", Uuid::new_v4().to_string().replace("-", "")); //todo: use hash of path or something stable
+                let id = format!("esp-idf-{}", Uuid::new_v4().to_string().replace("-", ""));
                 let base_path = self.path.as_ref().unwrap();
-                let idf_path = base_path.clone().join(version).join("esp-idf");
+                let idf_path = base_path.join(version).join("esp-idf");
                 let tools_path = base_path
-                    .clone()
                     .join(version)
                     .join(self.tool_install_folder_name.as_ref().unwrap());
+
                 let python_path = match std::env::consts::OS {
-                    "windows" => tools_path
-                        .clone()
-                        .join("python")
-                        .join("Scripts")
-                        .join("Python.exe"),
-                    _ => tools_path
-                        .clone()
-                        .join("python")
-                        .join("bin")
-                        .join("python3"),
-                };
-                let activation_script = match std::env::consts::OS {
-                    "windows" => base_path
-                        .clone()
-                        .join(version)
-                        .join("Microsoft.PowerShell_profile.ps1"),
-                    _ => base_path
-                        .clone()
-                        .join(format!("activate_idf_{}.sh", version)),
+                    "windows" => tools_path.join("python").join("Scripts").join("Python.exe"),
+                    _ => tools_path.join("python").join("bin").join("python3"),
                 };
 
-                let idf_installed_entry = json!({
-                    "id": id,
-                    "name": version,
-                    "path": idf_path,
-                    "python": python_path,
-                    "idfToolsPath": tools_path,
-                    "activationScript": activation_script,
-                });
-                idf_installed
-                    .as_array_mut()
-                    .unwrap()
-                    .push(idf_installed_entry);
+                let activation_script = match std::env::consts::OS {
+                    "windows" => base_path
+                        .join(version)
+                        .join("Microsoft.PowerShell_profile.ps1"),
+                    _ => base_path.join(format!("activate_idf_{}.sh", version)),
+                };
+
+                let installation = IdfInstallation {
+                    id,
+                    name: version.to_string(),
+                    path: idf_path.to_string_lossy().into_owned(),
+                    python: python_path.to_string_lossy().into_owned(),
+                    idf_tools_path: tools_path.to_string_lossy().into_owned(),
+                    activation_script: activation_script.to_string_lossy().into_owned(),
+                };
+
+                idf_installations.push(installation);
             }
         }
 
-        let git_path = get_git_path();
+        let git_path = get_git_path().map_err(|e| anyhow!("Failed to get git path. {}", e))?;
 
-        let esp_ide_json = json!({
-          "gitPath": git_path.unwrap(),
-          "idfSelectedId": idf_installed.as_array().unwrap()[0]["id"].as_str().unwrap_or(&String::new()),
-          "idfInstalled": idf_installed,
-      })
-      .to_string();
-        let mut file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(file_path)
-            .map_err(|e| e.to_string())?;
-        file.write_all(esp_ide_json.as_bytes())
-            .map_err(|e| e.to_string())?;
+        let mut config = IdfConfig {
+            git_path,
+            idf_selected_id: idf_installations
+                .first()
+                .map(|install| install.id.as_str()) // just reference the string
+                .unwrap_or_default()
+                .to_string(),
+            idf_installed: idf_installations,
+        };
 
-        Ok(())
+        let tmp_path = PathBuf::from(self.esp_idf_json_path.clone().unwrap_or_default());
+
+        let ide_conf_path = tmp_path.join("esp_ide.json");
+        config.to_file(ide_conf_path, true)
     }
 }

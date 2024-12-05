@@ -9,12 +9,14 @@ use tera::{Context, Tera};
 use utils::find_directories_by_name;
 
 pub mod command_executor;
+pub mod idf_config;
 pub mod idf_tools;
 pub mod idf_versions;
 pub mod python_utils;
 pub mod settings;
 pub mod system_dependencies;
 pub mod utils;
+pub mod version_manager;
 use std::fs::{set_permissions, File};
 use std::{
     env,
@@ -469,11 +471,7 @@ pub fn setup_environment_variables(
     ));
     env_vars.push((
         "OPENOCD_SCRIPTS".to_string(),
-        get_openocd_scripts_folder(tool_install_directory)
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string(),
+        get_openocd_scripts_folder(tool_install_directory).unwrap(),
     ));
 
     let python_env_path_string = tool_install_directory
@@ -536,14 +534,14 @@ fn get_elf_rom_dir(idf_tools_path: &PathBuf) -> Result<PathBuf, std::io::Error> 
 ///
 /// * `Result<PathBuf, std::io::Error>` - On success, returns a `PathBuf` representing the path to the OpenOCD scripts folder.
 ///   On error, returns a `std::io::Error` indicating the cause of the error.
-fn get_openocd_scripts_folder(idf_tools_path: &PathBuf) -> Result<PathBuf, std::io::Error> {
+fn get_openocd_scripts_folder(idf_tools_path: &PathBuf) -> Result<String, std::io::Error> {
     let search_path = idf_tools_path.join("tools").join("openocd-esp32");
 
     let result = find_directories_by_name(&search_path, "scripts");
 
     if result.is_empty() {
         log::warn!("No OpenOCD scripts found in {}", search_path.display());
-        return Ok(PathBuf::new());
+        return Ok(String::new());
     } else if result.len() > 1 {
         log::warn!(
             "Multiple OpenOCD scripts found in {}, using the first one",
