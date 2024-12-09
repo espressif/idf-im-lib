@@ -1,6 +1,6 @@
 [package]
 name = "idf-im-lib"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 
 [features]
@@ -28,5 +28,5 @@ tempfile = "3.2"
 
 rustpython-vm = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["freeze-stdlib"], optional = true }
 rustpython-stdlib = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["ssl-vendor"], optional = true }
-anyhow = "1.0.93"
+anyhow = "^1.0"
 rust_search = "2.1.0"
