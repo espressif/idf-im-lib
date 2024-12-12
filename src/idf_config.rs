@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -50,6 +51,15 @@ impl IdfConfig {
         // Create parent directories if they don't exist
         ensure_path(path.as_ref().parent().unwrap().to_str().unwrap())?;
 
+        if path.as_ref().exists() {
+            debug!("Config file already exists, appending to it");
+            let existing_config = IdfConfig::from_file(path.as_ref())?;
+            let existing_version = existing_config.idf_installed;
+            self.idf_installed.extend(existing_version);
+        } else {
+            debug!("Creating new ide config file");
+        }
+
         // Convert to JSON string
         let json_string = if pretty {
             serde_json::to_string_pretty(self)
@@ -58,12 +68,7 @@ impl IdfConfig {
         }
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        if path.as_ref().exists() {
-            let existing_config = IdfConfig::from_file(path.as_ref())?;
-            let existing_version = existing_config.idf_installed;
-            self.idf_installed.extend(existing_version);
-        }
-        let mut file = OpenOptions::new()
+        let mut file: fs::File = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
