@@ -1,4 +1,3 @@
-use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
 use git2::{FetchOptions, ObjectType, RemoteCallbacks, Repository, SubmoduleUpdateOptions};
 use log::{error, info, trace, warn};
 use reqwest::Client;
@@ -7,6 +6,7 @@ use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
 use utils::find_directories_by_name;
+use zip::read::ZipArchive;
 
 pub mod command_executor;
 pub mod idf_config;
@@ -17,7 +17,7 @@ pub mod settings;
 pub mod system_dependencies;
 pub mod utils;
 pub mod version_manager;
-use std::fs::{set_permissions, File};
+use std::fs::File;
 use std::{
     env,
     fs::{self},
@@ -653,9 +653,19 @@ pub async fn download_file(
 pub fn decompress_archive(
     archive_path: &str,
     destination_path: &str,
-) -> Result<Decompression, DecompressError> {
-    let opts = &ExtractOptsBuilder::default().strip(0).build().unwrap();
-    decompress::decompress(archive_path, destination_path, opts)
+) -> Result<String, &'static str> {
+    let file_handle = match fs::File::open(archive_path) {
+        Ok(res) => res,
+        Err(_)  => return Err("Could not open file!")
+    };
+    let mut archive = match ZipArchive::new(file_handle) {
+        Ok(res) => res,
+        Err(_)  => return Err("Could not read archive!")
+    };
+    match archive.extract(destination_path){
+        Ok(_) =>  Ok(String::from(archive_path)),
+        Err(_) => Err("Could not read extract archive!")
+    }
 }
 
 /// Ensures that a directory exists at the specified path.
