@@ -664,7 +664,7 @@ pub fn decompress_archive(
     };
     match archive.extract(destination_path){
         Ok(_) =>  Ok(String::from(archive_path)),
-        Err(_) => Err("Could not read extract archive!")
+        Err(_) => Err("Could not extract archive!")
     }
 }
 
