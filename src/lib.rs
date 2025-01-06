@@ -1,12 +1,16 @@
-use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
+use flate2::read::GzDecoder;
 use git2::{FetchOptions, ObjectType, RemoteCallbacks, Repository, SubmoduleUpdateOptions};
 use log::{error, info, trace, warn};
 use reqwest::Client;
 #[cfg(feature = "userustpython")]
 use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
+use tar::Archive;
 use tera::{Context, Tera};
+use thiserror::Error;
 use utils::find_directories_by_name;
+use xz2::read::XzDecoder;
+use zip::ZipArchive;
 
 pub mod command_executor;
 pub mod idf_config;
@@ -649,40 +653,162 @@ pub async fn download_file(
     Ok(())
 }
 
-/// Decompresses an archive file to a specified destination directory.
+#[derive(Error, Debug)]
+pub enum DecompressionError {
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    #[error("Zip error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    #[error("Unsupported archive format")]
+    UnsupportedFormat,
+}
+
+/// Decompresses an archive file into the specified destination directory.
 ///
-/// # Arguments
+/// # Parameters
 ///
-/// * `archive_path` - A string representing the path to the archive file to be decompressed.
-/// * `destination_path` - A string representing the path to the directory where the decompressed files should be placed.
+/// * `archive_path`: A string representing the path to the archive file to be decompressed.
+/// * `destination_path`: A string representing the path to the directory where the archive should be decompressed.
 ///
 /// # Returns
 ///
-/// * `Ok(Decompression)` if the archive was successfully decompressed.
-/// * `Err(DecompressError)` if an error occurred during the decompression process.
+/// * `Ok(())` if the decompression is successful.
+/// * `Err(DecompressionError)` if an error occurs during the decompression process.
 ///
-/// # Example
+/// # Errors
 ///
-/// ```rust
-/// use decompress::{self, DecompressError, Decompression, ExtractOptsBuilder};
-/// use idf_im_lib::decompress_archive;
+/// This function can return the following errors:
 ///
-/// fn main() {
-///     let archive_path = "/path/to/archive.zip";
-///     let destination_path = "/path/to/destination";
-///
-///     match decompress_archive(archive_path, destination_path) {
-///         Ok(decompression) => println!("Archive decompressed successfully"),
-///         Err(e) => eprintln!("Error during decompression: {}", e),
-///     }
-/// }
-/// ```
+/// * `DecompressionError::Io`: An error occurred while performing I/O operations.
+/// * `DecompressionError::Zip`: An error occurred while decompressing a ZIP archive.
+/// * `DecompressionError::UnsupportedFormat`: The specified archive format is not supported.
 pub fn decompress_archive(
     archive_path: &str,
     destination_path: &str,
-) -> Result<Decompression, DecompressError> {
-    let opts = &ExtractOptsBuilder::default().strip(0).build().unwrap();
-    decompress::decompress(archive_path, destination_path, opts)
+) -> Result<(), DecompressionError> {
+    let archive_path = Path::new(archive_path);
+    let destination_path = Path::new(destination_path);
+
+    if !destination_path.exists() {
+        std::fs::create_dir_all(destination_path)?;
+    }
+
+    match archive_path.extension().and_then(|ext| ext.to_str()) {
+        Some("zip") => decompress_zip(archive_path, destination_path),
+        Some("tar") => decompress_tar(archive_path, destination_path),
+        Some("gz") | Some("tgz") => {
+            if archive_path.to_str().unwrap_or("").ends_with(".tar.gz")
+                || archive_path.extension().unwrap() == "tgz"
+            {
+                decompress_tar_gz(archive_path, destination_path)
+            } else {
+                Err(DecompressionError::UnsupportedFormat)
+            }
+        }
+        Some("xz") => {
+            if archive_path.to_str().unwrap_or("").ends_with(".tar.xz") {
+                decompress_tar_xz(archive_path, destination_path)
+            } else {
+                Err(DecompressionError::UnsupportedFormat)
+            }
+        }
+        _ => Err(DecompressionError::UnsupportedFormat),
+    }
+}
+
+/// Decompresses a ZIP archive into the specified destination directory.
+///
+/// # Parameters
+///
+/// * `archive_path`: A reference to a `Path` representing the path to the ZIP archive.
+/// * `destination_path`: A reference to a `Path` representing the destination directory where the archive should be decompressed.
+///
+/// # Return Value
+///
+/// * `Result<(), DecompressionError>`: On success, returns `Ok(())`. On error, returns a `DecompressionError` indicating the cause of the error.
+fn decompress_zip(archive_path: &Path, destination_path: &Path) -> Result<(), DecompressionError> {
+    let file = File::open(archive_path)?;
+    let mut archive = ZipArchive::new(file)?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let outpath = match file.enclosed_name() {
+            Some(path) => destination_path.join(path),
+            None => continue,
+        };
+
+        if file.name().ends_with('/') {
+            std::fs::create_dir_all(&outpath)?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    std::fs::create_dir_all(p)?;
+                }
+            }
+            let mut outfile = File::create(&outpath)?;
+            io::copy(&mut file, &mut outfile)?;
+        }
+    }
+    Ok(())
+}
+
+/// Decompresses a TAR archive into the specified destination directory.
+///
+/// # Parameters
+///
+/// * `archive_path`: A reference to a `Path` representing the path to the TAR archive.
+/// * `destination_path`: A reference to a `Path` representing the destination directory where the archive should be decompressed.
+///
+/// # Return Value
+///
+/// * `Result<(), DecompressionError>`: On success, returns `Ok(())`. On error, returns a `DecompressionError` indicating the cause of the error.
+fn decompress_tar(archive_path: &Path, destination_path: &Path) -> Result<(), DecompressionError> {
+    let file = File::open(archive_path)?;
+    let mut archive = Archive::new(file);
+    archive.unpack(destination_path)?;
+    Ok(())
+}
+
+/// Decompresses a TAR.GZ archive into the specified destination directory.
+///
+/// # Parameters
+///
+/// * `archive_path`: A reference to a `Path` representing the path to the TAR.GZ archive.
+/// * `destination_path`: A reference to a `Path` representing the destination directory where the archive should be decompressed.
+///
+/// # Return Value
+///
+/// * `Result<(), DecompressionError>`: On success, returns `Ok(())`. On error, returns a `DecompressionError` indicating the cause of the error.
+fn decompress_tar_gz(
+    archive_path: &Path,
+    destination_path: &Path,
+) -> Result<(), DecompressionError> {
+    let file = File::open(archive_path)?;
+    let gz = GzDecoder::new(file);
+    let mut archive = Archive::new(gz);
+    archive.unpack(destination_path)?;
+    Ok(())
+}
+
+/// Decompresses a TAR.XZ archive into the specified destination directory.
+///
+/// # Parameters
+///
+/// * `archive_path`: A reference to a `Path` representing the path to the TAR.XZ archive.
+/// * `destination_path`: A reference to a `Path` representing the destination directory where the archive should be decompressed.
+///
+/// # Returns
+///
+/// * `Result<(), DecompressionError>`: On success, returns `Ok(())`. On error, returns a `DecompressionError` indicating the cause of the error.
+fn decompress_tar_xz(
+    archive_path: &Path,
+    destination_path: &Path,
+) -> Result<(), DecompressionError> {
+    let file = File::open(archive_path)?;
+    let xz = XzDecoder::new(file);
+    let mut archive = Archive::new(xz);
+    archive.unpack(destination_path)?;
+    Ok(())
 }
 
 /// Ensures that a directory exists at the specified path.
@@ -1164,6 +1290,88 @@ mod tests {
     use std::fs;
     use std::io::Write;
     use tempfile::TempDir;
+
+    use flate2::read::GzEncoder;
+    use tempfile::TempDir;
+
+    fn create_test_file(content: &str) -> (TempDir, String) {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.txt");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        (dir, file_path.to_string_lossy().into_owned())
+    }
+
+    fn create_zip_archive(content: &str) -> (TempDir, String) {
+        let (_source_dir, _source_path) = create_test_file(content);
+        let dest_dir = TempDir::new().unwrap();
+        let zip_path = dest_dir.path().join("archive.zip");
+
+        let file = File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+
+        zip.start_file("test.txt", zip::write::FileOptions::default())
+            .unwrap();
+        zip.write_all(content.as_bytes()).unwrap();
+        zip.finish().unwrap();
+
+        (dest_dir, zip_path.to_string_lossy().into_owned())
+    }
+
+    fn create_tar_archive(content: &str) -> (TempDir, String) {
+        let (_source_dir, source_path) = create_test_file(content);
+        let dest_dir = TempDir::new().unwrap();
+        let tar_path = dest_dir.path().join("archive.tar");
+
+        let file = File::create(&tar_path).unwrap();
+        let mut builder = tar::Builder::new(file);
+        builder
+            .append_path_with_name(&source_path, "test.txt")
+            .unwrap();
+        builder.finish().unwrap();
+
+        (dest_dir, tar_path.to_string_lossy().into_owned())
+    }
+
+    #[test]
+    fn test_decompress_zip() {
+        let content = "test content";
+        let (_archive_dir, archive_path) = create_zip_archive(content);
+        let extract_dir = TempDir::new().unwrap();
+
+        decompress_archive(&archive_path, extract_dir.path().to_str().unwrap()).unwrap();
+
+        let extracted_content = fs::read_to_string(extract_dir.path().join("test.txt")).unwrap();
+        assert_eq!(extracted_content, content);
+    }
+
+    #[test]
+    fn test_decompress_tar() {
+        let content = "test content";
+        let (_archive_dir, archive_path) = create_tar_archive(content);
+        let extract_dir = TempDir::new().unwrap();
+
+        decompress_archive(&archive_path, extract_dir.path().to_str().unwrap()).unwrap();
+
+        let extracted_content = fs::read_to_string(extract_dir.path().join("test.txt")).unwrap();
+        assert_eq!(extracted_content, content);
+    }
+
+    #[test]
+    fn test_invalid_format() {
+        let (_dir, file_path) = create_test_file("test content");
+        let extract_dir = TempDir::new().unwrap();
+
+        let result = decompress_archive(&file_path, extract_dir.path().to_str().unwrap());
+        assert!(matches!(result, Err(DecompressionError::UnsupportedFormat)));
+    }
+
+    #[test]
+    fn test_nonexistent_file() {
+        let extract_dir = TempDir::new().unwrap();
+        let result = decompress_archive("nonexistent.zip", extract_dir.path().to_str().unwrap());
+        assert!(matches!(result, Err(DecompressionError::Io(_))));
+    }
 
     #[test]
     fn test_verify_file_checksum_with_valid_file() {
