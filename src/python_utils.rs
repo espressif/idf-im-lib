@@ -105,6 +105,7 @@ pub fn run_python_script_from_file(
 /// # Example
 ///
 /// ```rust
+/// use idf_im_lib::python_utils::run_idf_tools_py;
 /// let path = "path/to/idf_tools";
 /// let env_vars = vec![("VAR_NAME".to_string(), "value".to_string())];
 /// match run_idf_tools_py(path, &env_vars) {

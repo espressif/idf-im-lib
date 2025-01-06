@@ -44,6 +44,7 @@ impl IdfConfig {
     /// # Examples
     ///
     /// ```rust
+    /// use idf_im_lib::idf_config::IdfConfig;
     /// let config = IdfConfig { ... };
     /// config.to_file("eim_idf.json", true)?;
     /// ```
