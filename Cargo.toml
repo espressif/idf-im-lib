@@ -24,7 +24,7 @@ config = "0.14.0"
 toml = "0.8"
 uuid = {version="1.10.0", features = ["v4"]}
 tempfile = "3.2"
-flate2 = "1.0"
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
 tar = "0.4"
 zip = "0.6"
 xz2 = "0.1"
@@ -34,6 +34,3 @@ rustpython-vm = { git = "https://github.com/Hahihula/RustPython.git", branch = "
 rustpython-stdlib = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["ssl-vendor"], optional = true }
 anyhow = "^1.0"
 rust_search = "2.1.0"
-
-[dev-dependencies]
-tempfile = "3.2"
