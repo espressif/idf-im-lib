@@ -1,0 +1,65 @@
+name: Rust
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      - created
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build for multiple platforms
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            package_name: linux-x64
+          - os: windows-latest
+            package_name: windows-x64
+          # - os: windows-latest
+          #   package_name: windows-arm64
+          #   target: aarch64-pc-windows-msvc
+          - os: macos-latest
+            package_name: macos-aarch64
+          - os: macos-13
+            package_name: macos-x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          target: ${{ matrix.target }}
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.target }}" != "" ]; then
+            cargo build --release --target ${{ matrix.target }}
+          else
+            cargo build --release
+          fi
+        shell: bash
+
+      - name: Test
+        run: |
+          if [ "${{ matrix.target }}" != "" ]; then
+            cargo test --no-fail-fast --lib --target ${{ matrix.target }} > result.txt
+          else
+            cargo test --no-fail-fast --lib > result.txt
+          fi
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          cat result.txt >> $GITHUB_STEP_SUMMARY
+        shell: bash
