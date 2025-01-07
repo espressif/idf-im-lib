@@ -25,7 +25,7 @@ uuid = {version="1.10.0", features = ["v4"]}
 tempfile = "3.2"
 anyhow = "^1.0"
 rust_search = "2.1.0"
-flate2 = "1.0"
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
 tar = "0.4"
 zip = "0.6"
 xz2 = "0.1"
