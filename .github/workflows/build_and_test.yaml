@@ -60,6 +60,9 @@ jobs:
           else
             cargo test --no-fail-fast --lib > result.txt
           fi
-          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          cat result.txt >> $GITHUB_STEP_SUMMARY
         shell: bash
+
+      - name: Format test results
+        uses: hahihula/rust-test-results-formatter@v1
+        with:
+          results-file: "result.txt"
