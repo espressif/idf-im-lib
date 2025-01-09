@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(read_config.idf_installed.len(), config.idf_installed.len());
 
         // Test appending to existing config
-        let mut new_installation = IdfInstallation {
+        let new_installation = IdfInstallation {
             activation_script: String::from("/esp/idf/v5.1/export.sh"),
             id: String::from("5.1"),
             idf_tools_path: String::from("/home/user/.espressif/tools"),

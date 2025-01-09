@@ -226,3 +226,134 @@ pub fn remove_directory_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_find_directories_by_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_path = temp_dir.path();
+
+        // Create test directory structure
+        let test_dir1 = base_path.join("test_dir");
+        let test_dir2 = base_path.join("subdir").join("test_dir");
+        fs::create_dir_all(&test_dir1).unwrap();
+        fs::create_dir_all(&test_dir2).unwrap();
+
+        let results = find_directories_by_name(base_path, "test_dir");
+        assert_eq!(results.len(), 2);
+        assert!(results
+            .iter()
+            .any(|p| p.contains(test_dir1.to_str().unwrap())));
+        assert!(results
+            .iter()
+            .any(|p| p.contains(test_dir2.to_str().unwrap())));
+    }
+
+    #[test]
+    fn test_is_valid_idf_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_path = temp_dir.path();
+
+        // Create invalid directory (no tools.json)
+        assert!(!is_valid_idf_directory(base_path.to_str().unwrap()));
+
+        // Create valid IDF directory structure
+        let tools_dir = base_path.join("tools");
+        fs::create_dir_all(&tools_dir).unwrap();
+        let tools_json_path = tools_dir.join("tools.json");
+        let mut file = File::create(tools_json_path).unwrap();
+        write!(file, r#"{{"tools": [], "version": 1}}"#).unwrap();
+
+        assert!(is_valid_idf_directory(base_path.to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_filter_duplicate_paths() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_path = temp_dir.path();
+
+        // Create test files with different content
+        let file1_path = base_path.join("file1.txt");
+        let file2_path = base_path.join("file2.txt");
+
+        fs::write(&file1_path, "content1").unwrap();
+        fs::write(&file2_path, "content2").unwrap();
+
+        let paths = vec![
+            file1_path.to_string_lossy().to_string(),
+            file1_path.to_string_lossy().to_string(), // Duplicate
+            file2_path.to_string_lossy().to_string(),
+        ];
+
+        let filtered = filter_duplicate_paths(paths);
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_filter_subpaths() {
+        let paths = vec![
+            "/path/to/dir".to_string(),
+            "/path/to/dir/subdir".to_string(),
+            "/path/to/another".to_string(),
+        ];
+
+        let filtered = filter_subpaths(paths);
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.contains(&"/path/to/dir".to_string()));
+        assert!(filtered.contains(&"/path/to/another".to_string()));
+        assert!(!filtered.contains(&"/path/to/dir/subdir".to_string()));
+    }
+
+    #[test]
+    fn test_remove_directory_all() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_path = temp_dir.path();
+
+        // Create test directory structure
+        let test_dir = base_path.join("test_dir");
+        let test_subdir = test_dir.join("subdir");
+        let test_file = test_dir.join("test.txt");
+
+        fs::create_dir_all(&test_subdir).unwrap();
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test removal
+        assert!(remove_directory_all(&test_dir).is_ok());
+        assert!(!test_dir.exists());
+    }
+
+    #[test]
+    fn test_remove_directory_all_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let non_existent = temp_dir.path().join("non_existent");
+
+        assert!(remove_directory_all(&non_existent).is_ok());
+    }
+
+    #[test]
+    fn test_remove_directory_all_readonly() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_dir = temp_dir.path().join("readonly_dir");
+        let test_file = test_dir.join("readonly.txt");
+
+        fs::create_dir_all(&test_dir).unwrap();
+        fs::write(&test_file, "readonly content").unwrap();
+
+        #[cfg(windows)]
+        {
+            let metadata = fs::metadata(&test_file).unwrap();
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(true);
+            fs::set_permissions(&test_file, permissions).unwrap();
+        }
+
+        assert!(remove_directory_all(&test_dir).is_ok());
+        assert!(!test_dir.exists());
+    }
+}
