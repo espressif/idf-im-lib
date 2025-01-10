@@ -202,3 +202,165 @@ impl IdfConfig {
 pub fn parse_idf_config<P: AsRef<Path>>(path: P) -> Result<IdfConfig> {
     IdfConfig::from_file(path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_test_config() -> IdfConfig {
+        IdfConfig {
+            git_path: String::from("/opt/homebrew/bin/git"),
+            idf_installed: vec![
+                IdfInstallation {
+                    activation_script: String::from("/tmp/esp-new/activate_idf_v5.4.sh"),
+                    id: String::from("esp-idf-5705c12db93b4d1a8b084c6986173c1b"),
+                    idf_tools_path: String::from("/tmp/esp-new/v5.4/tools"),
+                    name: String::from("ESP-IDF v5.4"),
+                    path: String::from("/tmp/esp-new/v5.4/esp-idf"),
+                    python: String::from("/tmp/esp-new/v5.4/tools/python/bin/python3"),
+                },
+                IdfInstallation {
+                    activation_script: String::from("/tmp/esp-new/activate_idf_v5.1.5.sh"),
+                    id: String::from("esp-idf-5f014e6764904e4c914eeb365325bfcd"),
+                    idf_tools_path: String::from("/tmp/esp-new/v5.1.5/tools"),
+                    name: String::from("v5.1.5"),
+                    path: String::from("/tmp/esp-new/v5.1.5/esp-idf"),
+                    python: String::from("/tmp/esp-new/v5.1.5/tools/python/bin/python3"),
+                },
+            ],
+            idf_selected_id: String::from("esp-idf-5705c12db93b4d1a8b084c6986173c1b"),
+        }
+    }
+
+    #[test]
+    fn test_get_selected_installation() {
+        let config = create_test_config();
+        let selected = config.get_selected_installation().unwrap();
+        assert_eq!(selected.id, "esp-idf-5705c12db93b4d1a8b084c6986173c1b");
+        assert_eq!(selected.name, "ESP-IDF v5.4");
+    }
+
+    #[test]
+    fn test_update_installation_name() {
+        let mut config = create_test_config();
+
+        // Test updating by ID
+        assert!(config.update_installation_name(
+            "esp-idf-5705c12db93b4d1a8b084c6986173c1b",
+            String::from("New Name")
+        ));
+        assert_eq!(config.idf_installed[0].name, "New Name");
+
+        // Test updating by name
+        assert!(config.update_installation_name("v5.1.5", String::from("Updated v5.1.5")));
+        assert_eq!(config.idf_installed[1].name, "Updated v5.1.5");
+
+        // Test updating non-existent installation
+        assert!(!config.update_installation_name("non-existent", String::from("Invalid")));
+    }
+
+    #[test]
+    fn test_select_installation() {
+        let mut config = create_test_config();
+
+        // Test selecting by ID
+        assert!(config.select_installation("esp-idf-5f014e6764904e4c914eeb365325bfcd"));
+        assert_eq!(
+            config.idf_selected_id,
+            "esp-idf-5f014e6764904e4c914eeb365325bfcd"
+        );
+
+        // Test selecting by name
+        assert!(config.select_installation("ESP-IDF v5.4"));
+        assert_eq!(
+            config.idf_selected_id,
+            "esp-idf-5705c12db93b4d1a8b084c6986173c1b"
+        );
+
+        // Test selecting non-existent installation
+        assert!(!config.select_installation("non-existent"));
+    }
+
+    #[test]
+    fn test_remove_installation() {
+        let mut config = create_test_config();
+
+        // Test removing by ID
+        assert!(config.remove_installation("esp-idf-5705c12db93b4d1a8b084c6986173c1b"));
+        assert_eq!(config.idf_installed.len(), 1);
+        assert!(config.idf_selected_id.is_empty()); // Should clear selection when removing selected installation
+
+        // Test removing by name
+        assert!(config.remove_installation("v5.1.5"));
+        assert!(config.idf_installed.is_empty());
+
+        // Test removing non-existent installation
+        assert!(!config.remove_installation("non-existent"));
+    }
+
+    #[test]
+    fn test_file_operations() -> Result<()> {
+        let dir = tempdir()?;
+        let config_path = dir.path().join("test_config.json");
+        let mut config = create_test_config();
+
+        // Test writing config to file
+        config.to_file(&config_path, true)?;
+        assert!(config_path.exists());
+
+        // Test reading config from file
+        let read_config = IdfConfig::from_file(&config_path)?;
+        assert_eq!(read_config.git_path, config.git_path);
+        assert_eq!(read_config.idf_selected_id, config.idf_selected_id);
+        assert_eq!(read_config.idf_installed.len(), config.idf_installed.len());
+
+        // Test appending to existing config
+        let new_installation = IdfInstallation {
+            activation_script: String::from("/esp/idf/v5.1/export.sh"),
+            id: String::from("5.1"),
+            idf_tools_path: String::from("/home/user/.espressif/tools"),
+            name: String::from("ESP-IDF v5.1"),
+            path: String::from("/esp/idf/v5.1"),
+            python: String::from("/usr/bin/python3"),
+        };
+
+        config.idf_installed = vec![new_installation.clone()];
+        config.to_file(&config_path, true)?;
+
+        let updated_config = IdfConfig::from_file(&config_path)?;
+        assert!(updated_config
+            .idf_installed
+            .iter()
+            .any(|install| install.id == "5.1"));
+        assert!(updated_config
+            .idf_installed
+            .iter()
+            .any(|install| install.id == "esp-idf-5705c12db93b4d1a8b084c6986173c1b"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_idf_config() -> Result<()> {
+        let dir = tempdir()?;
+        let config_path = dir.path().join("parse_test_config.json");
+        let config = create_test_config();
+
+        // Write test config to file
+        let json = serde_json::to_string_pretty(&config)?;
+        fs::write(&config_path, json)?;
+
+        // Test parsing
+        let parsed_config = parse_idf_config(&config_path)?;
+        assert_eq!(parsed_config.git_path, config.git_path);
+        assert_eq!(parsed_config.idf_selected_id, config.idf_selected_id);
+        assert_eq!(
+            parsed_config.idf_installed.len(),
+            config.idf_installed.len()
+        );
+
+        Ok(())
+    }
+}

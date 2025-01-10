@@ -189,3 +189,49 @@ pub async fn get_idf_names() -> Vec<String> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_idf_versions_by_target() {
+        let releases = Releases {
+            VERSIONS: vec![
+                Version {
+                    name: "v4.4.5".to_string(),
+                    pre_release: false,
+                    old: false,
+                    end_of_life: false,
+                    has_targets: true,
+                    supported_targets: vec!["esp32".to_string(), "esp32s2".to_string()],
+                },
+                Version {
+                    name: "v5.0.0".to_string(),
+                    pre_release: false,
+                    old: false,
+                    end_of_life: false,
+                    has_targets: true,
+                    supported_targets: vec!["esp32".to_string()],
+                },
+            ],
+            IDF_TARGETS: vec![
+                IDFTarget {
+                    text: "ESP32".to_string(),
+                    value: "esp32".to_string(),
+                },
+                IDFTarget {
+                    text: "ESP32-S2".to_string(),
+                    value: "esp32s2".to_string(),
+                },
+            ],
+            RELEASES: HashMap::new(),
+        };
+
+        let versions_by_target = get_idf_versions_by_target(&releases);
+
+        assert_eq!(versions_by_target.len(), 2);
+        assert_eq!(versions_by_target.get("esp32").unwrap().len(), 2);
+        assert_eq!(versions_by_target.get("esp32s2").unwrap().len(), 1);
+    }
+}
