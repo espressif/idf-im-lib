@@ -8,7 +8,7 @@ param(
 
 # Function to print environment variables
 function Print-EnvVariables {
-    "PATH=$env:PATH;{{add_paths_extras}}"
+    "PATH={{add_paths_extras}}"
     "ESP_IDF_VERSION={{idf_version}}"
     $env_var_pairs.GetEnumerator() | ForEach-Object {
         Write-Host "$($_.Key)=$($_.Value)"
