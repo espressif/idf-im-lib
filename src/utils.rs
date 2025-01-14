@@ -283,6 +283,8 @@ mod tests {
         let file2_path = base_path.join("file2.txt");
 
         fs::write(&file1_path, "content1").unwrap();
+        let duration = std::time::Duration::from_millis(1000); // Sleep for 1 second
+        std::thread::sleep(duration); // because on windows we use the modified time to identify duplicates
         fs::write(&file2_path, "content2").unwrap();
 
         let paths = vec![

@@ -511,10 +511,9 @@ fn get_elf_rom_dir(idf_tools_path: &PathBuf) -> Result<PathBuf, std::io::Error> 
 
         // Sort the subdirectories
         subdirs.sort();
-        if let Some(first_subdir) = subdirs.first() {
-            // Set the first subdirectory as the ELF ROM directory
-            let elf_rom_dir = first_subdir.as_path();
-            log::debug!("Using ELF ROM directory: {}", elf_rom_dir.display());
+        if let Some(last_subdir) = subdirs.last() {
+            log::debug!("Using ELF ROM directory: {}", last_subdir.display());
+            return Ok(last_subdir.clone());
         } else {
             log::warn!("No ELF ROM directories found in {}", elf_rom_dir.display());
         }
@@ -1134,6 +1133,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::io::Write;
+    use tempfile::TempDir;
 
     #[test]
     fn test_verify_file_checksum_with_valid_file() {
@@ -1246,5 +1246,61 @@ mod tests {
         let expanded_path = expand_tilde(tilde_path);
 
         assert_eq!(expanded_path, home_dir.join("test_directory"));
+    }
+
+    #[test]
+    fn test_get_elf_rom_dir_with_valid_structure() -> Result<(), Box<dyn std::error::Error>> {
+        // Create a temporary directory that will be automatically cleaned up
+        let temp_dir = TempDir::new()?;
+        let idf_tools_path = temp_dir.path().to_path_buf();
+
+        // Create the directory structure
+        let tools_dir = idf_tools_path.join("tools");
+        let esp_rom_dir = tools_dir.join("esp-rom-elfs");
+        let version_dir = esp_rom_dir.join("20243982");
+
+        fs::create_dir_all(&version_dir)?;
+
+        // Call the function
+        let result = get_elf_rom_dir(&idf_tools_path)?;
+
+        // Verify the result
+        assert_eq!(result, version_dir);
+
+        Ok(())
+    }
+    #[test]
+    fn test_get_elf_rom_dir_with_empty_directory() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
+        let idf_tools_path = temp_dir.path().to_path_buf();
+
+        // Create empty directory structure
+        let tools_dir = idf_tools_path.join("tools");
+        let esp_rom_dir = tools_dir.join("esp-rom-elfs");
+        fs::create_dir_all(&esp_rom_dir)?;
+
+        // Call the function
+        let result = get_elf_rom_dir(&idf_tools_path)?;
+
+        // Should return the esp-rom-elfs directory even if empty
+        assert_eq!(result, esp_rom_dir);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_elf_rom_dir_with_nonexistent_directory() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
+        let idf_tools_path = temp_dir.path().to_path_buf();
+
+        // Don't create any directories
+
+        // Call the function
+        let result = get_elf_rom_dir(&idf_tools_path)?;
+
+        // Should return a path to the (nonexistent) esp-rom-elfs directory
+        assert_eq!(result, idf_tools_path.join("tools").join("esp-rom-elfs"));
+
+        Ok(())
     }
 }

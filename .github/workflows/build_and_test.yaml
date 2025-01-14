@@ -56,11 +56,12 @@ jobs:
       - name: Test
         run: |
           if [ "${{ matrix.target }}" != "" ]; then
-            cargo test --no-fail-fast --lib --target ${{ matrix.target }} > result.txt
+            cargo test --no-fail-fast --lib --target ${{ matrix.target }} 2>&1 | tee result.txt
           else
-            cargo test --no-fail-fast --lib > result.txt
+            cargo test --no-fail-fast --lib 2>&1 | tee result.txt
           fi
         shell: bash
+        continue-on-error: true
 
       - name: Format test results
         uses: hahihula/rust-test-results-formatter@v1
