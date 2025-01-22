@@ -1,4 +1,5 @@
 use crate::{command_executor::execute_command, idf_tools::read_and_parse_tools_file};
+use log::debug;
 use rust_search::SearchBuilder;
 #[cfg(not(windows))]
 use std::os::unix::fs::MetadataExt;
@@ -227,11 +228,35 @@ pub fn remove_directory_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     Ok(())
 }
 
+/// Retry wrapper function that takes a closure and retries it according to the configuration
+pub fn with_retry<F, T, E>(f: F, max_retries: usize) -> Result<T, E>
+where
+    F: Fn() -> Result<T, E>,
+    E: std::fmt::Debug,
+{
+    let mut attempt = 0;
+
+    loop {
+        match f() {
+            Ok(value) => return Ok(value),
+            Err(e) => {
+                attempt += 1;
+                if attempt >= max_retries {
+                    return Err(e);
+                }
+
+                debug!("Attempt {} failed with error: {:?}", attempt, e);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use tempfile::TempDir;
 
     #[test]
@@ -357,5 +382,39 @@ mod tests {
 
         assert!(remove_directory_all(&test_dir).is_ok());
         assert!(!test_dir.exists());
+    }
+    #[test]
+    fn test_retry_success_after_failure() {
+        let counter = AtomicU32::new(0);
+
+        let result = with_retry(
+            || {
+                let current = counter.fetch_add(1, Ordering::SeqCst);
+                if current < 2 {
+                    Err("Not ready yet")
+                } else {
+                    Ok("Success!")
+                }
+            },
+            3,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(counter.load(Ordering::SeqCst), 3);
+    }
+    #[test]
+    fn test_retry_all_attempts_failed() {
+        let counter = AtomicU32::new(0);
+
+        let result: Result<&str, &str> = with_retry(
+            || {
+                counter.fetch_add(1, Ordering::SeqCst);
+                Err("Always fails")
+            },
+            3,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(counter.load(Ordering::SeqCst), 3);
     }
 }
