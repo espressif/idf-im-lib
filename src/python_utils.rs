@@ -118,13 +118,21 @@ pub fn run_idf_tools_py(
     idf_tools_path: &str,
     environment_variables: &Vec<(String, String)>,
 ) -> Result<String, String> {
+    run_idf_tools_py_with_features(idf_tools_path, environment_variables, &vec![])
+}
+
+pub fn run_idf_tools_py_with_features(
+    idf_tools_path: &str,
+    environment_variables: &Vec<(String, String)>,
+    features: &Vec<String>,
+) -> Result<String, String> {
     let escaped_path = if std::env::consts::OS == "windows" {
         replace_unescaped_spaces_win(&idf_tools_path)
     } else {
         replace_unescaped_spaces_posix(&idf_tools_path)
     };
     run_install_script(&escaped_path, environment_variables)?;
-    run_install_python_env_script(&escaped_path, environment_variables)
+    run_install_python_env_script_with_features(&escaped_path, environment_variables, features)
 }
 
 fn run_install_script(
@@ -147,9 +155,26 @@ fn run_install_python_env_script(
     idf_tools_path: &str,
     environment_variables: &Vec<(String, String)>,
 ) -> Result<String, String> {
+    let output =
+        run_install_python_env_script_with_features(idf_tools_path, environment_variables, &vec![]);
+
+    trace!("idf_tools.py install-python-env output:\n{:?}", output);
+
+    output
+}
+
+fn run_install_python_env_script_with_features(
+    idf_tools_path: &str,
+    environment_variables: &Vec<(String, String)>,
+    features: &Vec<String>,
+) -> Result<String, String> {
+    let mut args = "install-python-env".to_string();
+    if features.len() > 0 {
+        args = format!("{} --features {}", args, features.join(","));
+    }
     let output = run_python_script_from_file(
         idf_tools_path,
-        Some("install-python-env"),
+        Some(&args),
         None,
         Some(environment_variables),
     );

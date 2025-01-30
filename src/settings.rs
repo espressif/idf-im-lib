@@ -29,6 +29,7 @@ pub struct Settings {
     pub idf_mirror: Option<String>,
     pub recurse_submodules: Option<bool>,
     pub install_all_prerequisites: Option<bool>,
+    pub idf_features: Option<Vec<String>>,
 }
 
 impl Default for Settings {
@@ -74,6 +75,7 @@ impl Default for Settings {
             idf_mirror: Some(crate::get_idf_mirrors_list().first().unwrap().to_string()),
             recurse_submodules: Some(false),
             install_all_prerequisites: Some(false),
+            idf_features: None,
         }
     }
 }
@@ -158,6 +160,7 @@ impl Settings {
             }
             "mirror" => self.mirror == default_settings.mirror,
             "idf_mirror" => self.idf_mirror == default_settings.idf_mirror,
+            "idf_features" => self.idf_features == default_settings.idf_features,
             _ => false,
         }
     }
