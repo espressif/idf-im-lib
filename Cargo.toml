@@ -21,8 +21,8 @@ config = "0.14.0"
 toml = "0.8"
 uuid = {version="1.10.0", features = ["v4"]}
 tempfile = "3.2"
+anyhow = "^1.0"
+rust_search = "2.1.0"
 
 rustpython-vm = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["freeze-stdlib"], optional = true }
 rustpython-stdlib = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["ssl-vendor"], optional = true }
-anyhow = "^1.0"
-rust_search = "2.1.0"

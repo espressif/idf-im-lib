@@ -97,6 +97,9 @@ impl Settings {
 
         for (key, value) in cli_settings {
             if let Some(v) = value {
+                if v.to_string().len() < 1 as usize {
+                    continue;
+                }
                 if key != "config" {
                     cfg.set(&key, v)?;
                 }
