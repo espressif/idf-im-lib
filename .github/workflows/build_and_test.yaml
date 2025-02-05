@@ -23,6 +23,8 @@ jobs:
         include:
           - os: ubuntu-latest
             package_name: linux-x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
           - os: windows-latest
             package_name: windows-x64
           # - os: windows-latest
