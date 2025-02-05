@@ -112,6 +112,7 @@ pub fn create_activation_shell_script(
     file_path: &str,
     idf_path: &str,
     idf_tools_path: &str,
+    idf_python_env_path: Option<&str>,
     idf_version: &str,
     export_paths: Vec<String>,
     env_var_pairs: Vec<(String, String)>,
@@ -141,6 +142,19 @@ pub fn create_activation_shell_script(
     );
     context.insert("idf_version", &idf_version);
     context.insert("addition_to_path", &export_paths.join(":"));
+    if let Some(idf_python_env_path) = idf_python_env_path {
+        context.insert("idf_python_env_path", &idf_python_env_path);
+        context.insert(
+            "idf_python_env_path_escaped",
+            &replace_unescaped_spaces_posix(idf_python_env_path),
+        );
+    } else {
+        context.insert("idf_python_env_path", &format!("{}/python", idf_tools_path));
+        context.insert(
+            "idf_python_env_path_escaped",
+            &replace_unescaped_spaces_posix(&format!("{}/python", idf_tools_path)),
+        );
+    }
     let rendered = match tera.render("activate_idf_template", &context) {
         Err(e) => {
             error!("Failed to render template: {}", e);
@@ -1081,6 +1095,7 @@ pub fn single_version_post_install(
                 install_path,
                 idf_path,
                 tool_install_directory,
+                None,
                 idf_version,
                 export_paths,
                 env_vars,
