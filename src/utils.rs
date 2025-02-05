@@ -1,6 +1,9 @@
 use crate::{
-    command_executor::execute_command, idf_config::IdfInstallation,
-    idf_tools::read_and_parse_tools_file, single_version_post_install,
+    command_executor::execute_command,
+    idf_config::{IdfConfig, IdfInstallation},
+    idf_tools::read_and_parse_tools_file,
+    single_version_post_install,
+    version_manager::get_default_config_path,
 };
 use core::error;
 use log::{debug, error};
@@ -328,6 +331,23 @@ pub fn parse_tool_set_config(config_path: &str) {
             python: tool_set.system_python_executable_path,
             idf_tools_path: new_idf_tools_path,
         };
+        let config_path = get_default_config_path();
+        let mut current_config = match IdfConfig::from_file(&config_path) {
+            Ok(config) => config,
+            Err(e) => {
+                error!("Config file not found: {}", e); // TODO: Handle case of non     existing config file
+                return;
+            }
+        };
+        current_config.idf_installed.push(installation);
+        match current_config.to_file(config_path, true) {
+            Ok(_) => {
+                debug!("Updated config file with new tool set");
+            }
+            Err(e) => {
+                error!("Failed to update config file: {}", e);
+            }
+        }
     }
 }
 
