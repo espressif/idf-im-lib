@@ -256,6 +256,7 @@ fn create_powershell_profile(
     profile_path: &str,
     idf_path: &str,
     idf_tools_path: &str,
+    idf_python_env_path: Option<&str>,
     idf_version: &str,
     export_paths: Vec<String>,
     env_var_pairs: Vec<(String, String)>,
@@ -284,6 +285,17 @@ fn create_powershell_profile(
         "idf_tools_path",
         &replace_unescaped_spaces_win(idf_tools_path),
     );
+    if let Some(idf_python_env_path) = idf_python_env_path {
+        context.insert(
+            "idf_python_env_path",
+            &replace_unescaped_spaces_win(idf_python_env_path),
+        );
+    } else {
+        context.insert(
+            "idf_python_env_path",
+            &replace_unescaped_spaces_win(&format!("{}\\python", idf_tools_path)),
+        );
+    }
     context.insert("add_paths_extras", &export_paths.join(";"));
     let rendered = match tera.render("powershell_profile", &context) {
         Err(e) => {
@@ -317,6 +329,7 @@ pub fn create_desktop_shortcut(
     idf_path: &str,
     idf_version: &str,
     idf_tools_path: &str,
+    idf_python_env_path: Option<&str>,
     export_paths: Vec<String>,
     env_var_pairs: Vec<(String, String)>,
 ) -> Result<String, std::io::Error> {
@@ -326,6 +339,7 @@ pub fn create_desktop_shortcut(
                 profile_path,
                 idf_path,
                 idf_tools_path,
+                idf_python_env_path,
                 idf_version,
                 export_paths,
                 env_var_pairs,
@@ -1075,6 +1089,7 @@ pub fn single_version_post_install(
                 idf_path,
                 idf_version,
                 tool_install_directory,
+                None,
                 export_paths,
                 env_vars,
             ) {
