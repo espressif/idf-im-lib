@@ -21,7 +21,7 @@ use crate::{
 /// # Returns
 ///
 /// A `PathBuf` representing the default path to the ESP-IDF configuration file.
-fn get_default_config_path() -> PathBuf {
+pub fn get_default_config_path() -> PathBuf {
     let default_settings = Settings::default();
     PathBuf::from(default_settings.esp_idf_json_path.unwrap_or_default()).join("eim_idf.json")
 }

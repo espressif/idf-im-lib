@@ -1,11 +1,20 @@
-use crate::{command_executor::execute_command, idf_tools::read_and_parse_tools_file};
+use crate::{
+    command_executor::execute_command,
+    idf_config::{IdfConfig, IdfInstallation},
+    idf_tools::read_and_parse_tools_file,
+    single_version_post_install,
+    version_manager::get_default_config_path,
+};
+use anyhow::{anyhow, Result};
 use log::debug;
 use rust_search::SearchBuilder;
+use serde::{Deserialize, Serialize};
 #[cfg(not(windows))]
 use std::os::unix::fs::MetadataExt;
 use std::{
-    collections::HashSet,
-    fs, io,
+    collections::{HashMap, HashSet},
+    fs::{self},
+    io,
     path::{Path, PathBuf},
 };
 /// This function retrieves the path to the git executable.
@@ -249,6 +258,114 @@ where
             }
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IdfToolsConfig {
+    pub id: i64,
+    #[serde(rename = "idfLocation")]
+    pub idf_location: String,
+    #[serde(rename = "idfVersion")]
+    pub idf_version: String,
+    pub active: bool,
+    #[serde(rename = "systemGitExecutablePath")]
+    pub system_git_executable_path: String,
+    #[serde(rename = "systemPythonExecutablePath")]
+    pub system_python_executable_path: String,
+    #[serde(rename = "envVars")]
+    pub env_vars: HashMap<String, String>,
+}
+
+fn extract_tools_path_from_python_env_path(path: &str) -> Option<PathBuf> {
+    let path = PathBuf::from(path);
+    path.ancestors()
+        .find(|p| p.file_name().map_or(false, |name| name == "python_env"))
+        .and_then(|p| p.parent().map(|parent| parent.to_path_buf()))
+}
+
+/// Parses and processes a configuration file for IDF tools.
+///
+/// # Purpose
+///
+/// This function reads a JSON configuration file containing information about different IDF tool sets.
+/// It then processes this information to update the IDF installation configuration.
+///
+/// # Parameters
+///
+/// - `config_path`: A string representing the path to the configuration file.
+///
+/// # Return Value
+///
+/// This function does not return a value.
+///
+/// # Errors
+///
+/// This function logs errors to the console if the configuration file cannot be read or parsed.
+/// It also logs errors if the IDF installation configuration cannot be updated.
+pub fn parse_tool_set_config(config_path: &str) -> Result<()> {
+    let config_path = Path::new(config_path);
+    let json_str = std::fs::read_to_string(config_path).unwrap();
+    let config: Vec<IdfToolsConfig> = match serde_json::from_str(&json_str) {
+        Ok(config) => config,
+        Err(e) => return Err(anyhow!("Failed to parse config file: {}", e)),
+    };
+    for tool_set in config {
+        let new_idf_tools_path = extract_tools_path_from_python_env_path(
+            tool_set.env_vars.get("IDF_PYTHON_ENV_PATH").unwrap(),
+        )
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+        let new_export_paths = vec![tool_set.env_vars.get("PATH").unwrap().to_string()];
+        let tmp = PathBuf::from(tool_set.idf_location.clone());
+        let version_path = tmp.parent().unwrap();
+        single_version_post_install(
+            version_path.to_str().unwrap(),
+            &tool_set.idf_location,
+            &tool_set.idf_version,
+            &new_idf_tools_path,
+            new_export_paths,
+        );
+
+        let new_activation_script = match std::env::consts::OS {
+            "windows" => format!(
+                "{}\\Microsoft.PowerShell_profile.ps1",
+                version_path.to_str().unwrap()
+            ),
+            _ => format!(
+                "{}/{}",
+                version_path.to_str().unwrap(),
+                format!("activate_idf_{}.sh", tool_set.idf_version)
+            ),
+        };
+        let installation = IdfInstallation {
+            id: tool_set.id.to_string(),
+            activation_script: new_activation_script,
+            path: tool_set.idf_location,
+            name: tool_set.idf_version,
+            python: tool_set.system_python_executable_path,
+            idf_tools_path: new_idf_tools_path,
+        };
+        let config_path = get_default_config_path();
+        let mut current_config = match IdfConfig::from_file(&config_path) {
+            Ok(config) => config,
+            Err(e) => {
+                return Err(anyhow!("Config file not found: {}", e));
+            }
+        };
+        current_config.idf_installed.push(installation);
+        match current_config.to_file(config_path, true) {
+            Ok(_) => {
+                debug!("Updated config file with new tool set");
+                return Ok(());
+            }
+            Err(e) => {
+                return Err(anyhow!("Failed to update config file: {}", e));
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
