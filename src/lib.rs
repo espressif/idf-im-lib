@@ -6,7 +6,7 @@ use reqwest::Client;
 use rustpython_vm::literal::char;
 use sha2::{Digest, Sha256};
 use tera::{Context, Tera};
-use utils::find_directories_by_name;
+use utils::{find_directories_by_name, make_long_path_compatible};
 
 pub mod command_executor;
 pub mod idf_config;
@@ -682,7 +682,9 @@ pub fn decompress_archive(
     destination_path: &str,
 ) -> Result<Decompression, DecompressError> {
     let opts = &ExtractOptsBuilder::default().strip(0).build().unwrap();
-    decompress::decompress(archive_path, destination_path, opts)
+    let safe_path = make_long_path_compatible(archive_path);
+    let destination_path = make_long_path_compatible(destination_path);
+    decompress::decompress(safe_path.as_str(), destination_path.as_str(), opts)
 }
 
 /// Ensures that a directory exists at the specified path.

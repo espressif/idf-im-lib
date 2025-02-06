@@ -260,6 +260,39 @@ where
     }
 }
 
+/// Converts a path to a long path compatible with Windows.
+///
+/// This function takes a string representing a path and returns a new string.
+/// If the input path is on a Windows system and does not already start with `\\?\`,
+/// the function converts the path to a long path by canonicalizing the path,
+/// and then adding the `\\?\` prefix.
+/// If the input path is not on a Windows system or already starts with `\\?\`,
+/// the function returns the input path unchanged.
+///
+/// # Parameters
+///
+/// * `path`: A string representing the path to be converted.
+///
+/// # Return Value
+///
+/// A string representing the converted path.
+/// If the input path is on a Windows system and does not already start with `\\?\`,
+/// the returned string will be a long path with the `\\?\` prefix.
+/// If the input path is not on a Windows system or already starts with `\\?\`,
+/// the returned string will be the same as the input path.
+pub fn make_long_path_compatible(path: &str) -> String {
+    if std::env::consts::OS == "windows" && !path.starts_with(r"\\?\") {
+        // Convert to absolute path and add \\?\ prefix
+        let absolute_path = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
+
+        let mut long_path = PathBuf::from(r"\\?\");
+        long_path.push(absolute_path);
+        long_path.to_str().unwrap().to_string()
+    } else {
+        path.to_string()
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IdfToolsConfig {
     pub id: i64,
