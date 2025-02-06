@@ -1,0 +1,67 @@
+name: Pull Request Jira Integration
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  update-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Jira ticket ID
+        id: extract-ticket
+        env:
+          JIRA_PROJECT: EIM
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+
+          # Look for Jira ticket pattern (e.g., EIM-123) in title and body
+          TICKET_PATTERN="${{ env.JIRA_PROJECT }}-[0-9]+"
+
+          TITLE_TICKET=$(echo "$PR_TITLE" | grep -oE "$TICKET_PATTERN" || echo "")
+          BODY_TICKET=$(echo "$PR_BODY" | grep -oE "$TICKET_PATTERN" || echo "")
+
+          TICKET_ID="$TITLE_TICKET"
+          if [ -z "$TICKET_ID" ]; then
+            TICKET_ID="$BODY_TICKET"
+          fi
+
+          if [ -z "$TICKET_ID" ]; then
+            echo "No Jira ticket ID found in PR title or description"
+            exit 1
+          fi
+
+          echo "ticket_id=$TICKET_ID" >> $GITHUB_OUTPUT
+
+      - name: Process Jira token
+        id: process-token
+        run: |
+          # Remove 'token:' prefix if it exists
+          RAW_TOKEN='${{ secrets.JIRA_PASS }}'
+          CLEAN_TOKEN=$(echo "$RAW_TOKEN" | sed 's/^token://')
+          echo "clean_token=$CLEAN_TOKEN" >> $GITHUB_OUTPUT
+          echo $CLEAN_TOKEN
+          echo "JEZEK"
+
+      - name: Comment on Jira ticket
+        if: steps.extract-ticket.outputs.ticket_id != ''
+        env:
+          JIRA_USER: ${{ secrets.JIRA_USER }}
+          JIRA_PASS: ${{ secrets.JIRA_PASS }}
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_ID: ${{ steps.extract-ticket.outputs.ticket_id }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          CLEAN_TOKEN=$(echo "$JIRA_PASS" | sed 's/^token://')
+          COMMENT="GitHub PR created/updated: [$PR_TITLE]($PR_URL)"
+
+          curl -u "$JIRA_USER:$CLEAN_TOKEN" -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Atlassian-Token: no-check" \
+            -d "{\"body\": \"$COMMENT\"}" \
+            "$JIRA_URL/rest/api/3/issue/$JIRA_ID/comment"
