@@ -5,15 +5,15 @@ use crate::{
     single_version_post_install,
     version_manager::get_default_config_path,
 };
-use core::error;
-use log::{debug, error};
+use anyhow::{anyhow, Result};
+use log::debug;
 use rust_search::SearchBuilder;
 use serde::{Deserialize, Serialize};
 #[cfg(not(windows))]
 use std::os::unix::fs::MetadataExt;
 use std::{
     collections::{HashMap, HashSet},
-    fs::{self, File},
+    fs::{self},
     io,
     path::{Path, PathBuf},
 };
@@ -283,15 +283,31 @@ fn extract_tools_path_from_python_env_path(path: &str) -> Option<PathBuf> {
         .and_then(|p| p.parent().map(|parent| parent.to_path_buf()))
 }
 
-pub fn parse_tool_set_config(config_path: &str) {
+/// Parses and processes a configuration file for IDF tools.
+///
+/// # Purpose
+///
+/// This function reads a JSON configuration file containing information about different IDF tool sets.
+/// It then processes this information to update the IDF installation configuration.
+///
+/// # Parameters
+///
+/// - `config_path`: A string representing the path to the configuration file.
+///
+/// # Return Value
+///
+/// This function does not return a value.
+///
+/// # Errors
+///
+/// This function logs errors to the console if the configuration file cannot be read or parsed.
+/// It also logs errors if the IDF installation configuration cannot be updated.
+pub fn parse_tool_set_config(config_path: &str) -> Result<()> {
     let config_path = Path::new(config_path);
     let json_str = std::fs::read_to_string(config_path).unwrap();
     let config: Vec<IdfToolsConfig> = match serde_json::from_str(&json_str) {
         Ok(config) => config,
-        Err(e) => {
-            error!("Failed to parse config file: {}", e);
-            return;
-        }
+        Err(e) => return Err(anyhow!("Failed to parse config file: {}", e)),
     };
     for tool_set in config {
         let new_idf_tools_path = extract_tools_path_from_python_env_path(
@@ -335,20 +351,21 @@ pub fn parse_tool_set_config(config_path: &str) {
         let mut current_config = match IdfConfig::from_file(&config_path) {
             Ok(config) => config,
             Err(e) => {
-                error!("Config file not found: {}", e); // TODO: Handle case of non     existing config file
-                return;
+                return Err(anyhow!("Config file not found: {}", e));
             }
         };
         current_config.idf_installed.push(installation);
         match current_config.to_file(config_path, true) {
             Ok(_) => {
                 debug!("Updated config file with new tool set");
+                return Ok(());
             }
             Err(e) => {
-                error!("Failed to update config file: {}", e);
+                return Err(anyhow!("Failed to update config file: {}", e));
             }
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
