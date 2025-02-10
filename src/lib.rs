@@ -729,43 +729,76 @@ pub fn decompress_archive(
 ///
 /// * `Result<(), DecompressionError>`: On success, returns `Ok(())`. On error, returns a `DecompressionError` indicating the cause of the error.
 fn decompress_zip(archive_path: &Path, destination_path: &Path) -> Result<(), DecompressionError> {
-    let file = File::open(archive_path)?;
-    let mut archive = ZipArchive::new(file)?;
-    let mut current_depth = PathBuf::new();
+    log::info!(
+        "Decompressing {} to {}",
+        archive_path.display(),
+        destination_path.display()
+    );
 
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
-        let rel_path = file.enclosed_name().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "Invalid file name in archive")
-        })?;
+    if !Path::new(archive_path).exists() {
+        log::error!("File does not exist.");
+        return Err(DecompressionError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Archive file not found",
+        )));
+    }
 
-        // Split path into chunks to handle incrementally
-        let chunks: Vec<_> = rel_path.components().collect();
-        let mut partial_path = destination_path.to_path_buf();
+    match std::env::consts::OS {
+        "windows" => {
+            let executor = crate::command_executor::get_executor();
 
-        for (idx, chunk) in chunks[..chunks.len() - 1].iter().enumerate() {
-            current_depth.push(chunk);
-            partial_path.push(chunk);
+            let archive_path_str = archive_path.to_string_lossy();
+            let destination_path_str = destination_path.to_string_lossy();
 
-            if idx % 3 == 0 {
-                // Create directories every few levels to keep paths shorter
-                std::fs::create_dir_all(&partial_path)?;
-                partial_path = current_depth.clone();
+            let script = format!(
+                "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                archive_path_str, destination_path_str
+            );
+
+            match executor.run_script_from_string(&script) {
+                Ok(output) => {
+                    if !output.status.success() {
+                        let error_message = String::from_utf8_lossy(&output.stderr);
+                        log::error!("Decompression failed: {}", error_message);
+                        return Err(DecompressionError::Io(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("PowerShell decompression failed: {}", error_message),
+                        )));
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    log::error!("Failed to execute PowerShell command: {}", e);
+                    Err(DecompressionError::Io(e))
+                }
             }
         }
+        _ => {
+            let file = File::open(archive_path)?;
+            let mut archive = ZipArchive::new(file)?;
 
-        let final_path = destination_path.join(rel_path);
-        if file.name().ends_with('/') {
-            std::fs::create_dir_all(final_path)?;
-        } else {
-            if let Some(p) = final_path.parent() {
-                std::fs::create_dir_all(p)?;
+            for i in 0..archive.len() {
+                let mut file = archive.by_index(i)?;
+                let outpath = match file.enclosed_name() {
+                    Some(path) => destination_path.join(path),
+                    None => continue,
+                };
+
+                if file.name().ends_with('/') {
+                    std::fs::create_dir_all(&outpath)?;
+                } else {
+                    if let Some(p) = outpath.parent() {
+                        if !p.exists() {
+                            std::fs::create_dir_all(p)?;
+                        }
+                    }
+                    let mut outfile = File::create(&outpath)?;
+                    io::copy(&mut file, &mut outfile)?;
+                }
             }
-            let mut outfile = File::create(final_path)?;
-            io::copy(&mut file, &mut outfile)?;
+            Ok(())
         }
     }
-    Ok(())
 }
 
 /// Decompresses a TAR archive into the specified destination directory.
