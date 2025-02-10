@@ -731,103 +731,38 @@ pub fn decompress_archive(
 fn decompress_zip(archive_path: &Path, destination_path: &Path) -> Result<(), DecompressionError> {
     let file = File::open(archive_path)?;
     let mut archive = ZipArchive::new(file)?;
-
-    log::info!(
-        "Decompressing {} to {}",
-        archive_path.display(),
-        destination_path.display()
-    );
+    let mut current_depth = PathBuf::new();
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
+        let rel_path = file.enclosed_name().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "Invalid file name in archive")
+        })?;
 
-        // Log the raw filename for debugging
-        log::debug!("Processing file: {}", file.name());
+        // Split path into chunks to handle incrementally
+        let chunks: Vec<_> = rel_path.components().collect();
+        let mut partial_path = destination_path.to_path_buf();
 
-        let outpath = match file.enclosed_name() {
-            Some(path) => {
-                // Sanitize path components
-                let sanitized: PathBuf = path
-                    .components()
-                    .map(|c| match c {
-                        std::path::Component::Normal(os_str) => {
-                            let s = os_str.to_string_lossy();
-                            // Replace invalid Windows characters
-                            let cleaned = s.replace(
-                                |c| {
-                                    matches!(
-                                        c,
-                                        '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
-                                    )
-                                },
-                                "_",
-                            );
-                            std::path::PathBuf::from(cleaned)
-                        }
-                        component => std::path::PathBuf::from(component.as_os_str()),
-                    })
-                    .fold(std::path::PathBuf::new(), |mut acc, part| {
-                        acc.push(part);
-                        acc
-                    });
+        for (idx, chunk) in chunks[..chunks.len() - 1].iter().enumerate() {
+            current_depth.push(chunk);
+            partial_path.push(chunk);
 
-                // Join with destination path while preserving long path prefix
-                if cfg!(windows) {
-                    let dest_str = destination_path.to_str().unwrap_or("");
-                    if dest_str.starts_with(r"\\?\") {
-                        let mut full_path = PathBuf::from(r"\\?\");
-                        full_path.push(&dest_str[4..]);
-                        full_path.push(sanitized);
-                        full_path
-                    } else {
-                        destination_path.join(sanitized)
-                    }
-                } else {
-                    destination_path.join(sanitized)
-                }
+            if idx % 3 == 0 {
+                // Create directories every few levels to keep paths shorter
+                std::fs::create_dir_all(&partial_path)?;
+                partial_path = current_depth.clone();
             }
-            None => {
-                log::warn!("Skipping file with invalid name at index {}", i);
-                continue;
-            }
-        };
+        }
 
-        // Log the processed path for debugging
-        log::debug!("Extracting to: {}", outpath.display());
-
+        let final_path = destination_path.join(rel_path);
         if file.name().ends_with('/') {
-            match std::fs::create_dir_all(&outpath) {
-                Ok(_) => (),
-                Err(e) => {
-                    log::error!("Failed to create directory {}: {}", outpath.display(), e);
-                    return Err(e.into());
-                }
-            }
+            std::fs::create_dir_all(final_path)?;
         } else {
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    match std::fs::create_dir_all(p) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            log::error!("Failed to create parent directory {}: {}", p.display(), e);
-                            return Err(e.into());
-                        }
-                    }
-                }
+            if let Some(p) = final_path.parent() {
+                std::fs::create_dir_all(p)?;
             }
-
-            match File::create(&outpath) {
-                Ok(mut outfile) => {
-                    if let Err(e) = io::copy(&mut file, &mut outfile) {
-                        log::error!("Failed to write file {}: {}", outpath.display(), e);
-                        return Err(e.into());
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to create file {}: {}", outpath.display(), e);
-                    return Err(e.into());
-                }
-            }
+            let mut outfile = File::create(final_path)?;
+            io::copy(&mut file, &mut outfile)?;
         }
     }
     Ok(())
