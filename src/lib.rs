@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use tar::Archive;
 use tera::{Context, Tera};
 use thiserror::Error;
-use utils::find_directories_by_name;
+use utils::{find_directories_by_name, make_long_path_compatible};
 use xz2::read::XzDecoder;
 use zip::ZipArchive;
 
@@ -686,8 +686,10 @@ pub fn decompress_archive(
     archive_path: &str,
     destination_path: &str,
 ) -> Result<(), DecompressionError> {
-    let archive_path = Path::new(archive_path);
-    let destination_path = Path::new(destination_path);
+    let archive_path_long = make_long_path_compatible(archive_path);
+    let archive_path = Path::new(&archive_path_long);
+    let destination_path_long = make_long_path_compatible(destination_path);
+    let destination_path = Path::new(&destination_path_long);
 
     if !destination_path.exists() {
         std::fs::create_dir_all(destination_path)?;
@@ -730,23 +732,102 @@ fn decompress_zip(archive_path: &Path, destination_path: &Path) -> Result<(), De
     let file = File::open(archive_path)?;
     let mut archive = ZipArchive::new(file)?;
 
+    log::info!(
+        "Decompressing {} to {}",
+        archive_path.display(),
+        destination_path.display()
+    );
+
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
+
+        // Log the raw filename for debugging
+        log::debug!("Processing file: {}", file.name());
+
         let outpath = match file.enclosed_name() {
-            Some(path) => destination_path.join(path),
-            None => continue,
+            Some(path) => {
+                // Sanitize path components
+                let sanitized: PathBuf = path
+                    .components()
+                    .map(|c| match c {
+                        std::path::Component::Normal(os_str) => {
+                            let s = os_str.to_string_lossy();
+                            // Replace invalid Windows characters
+                            let cleaned = s.replace(
+                                |c| {
+                                    matches!(
+                                        c,
+                                        '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
+                                    )
+                                },
+                                "_",
+                            );
+                            std::path::PathBuf::from(cleaned)
+                        }
+                        component => std::path::PathBuf::from(component.as_os_str()),
+                    })
+                    .fold(std::path::PathBuf::new(), |mut acc, part| {
+                        acc.push(part);
+                        acc
+                    });
+
+                // Join with destination path while preserving long path prefix
+                if cfg!(windows) {
+                    let dest_str = destination_path.to_str().unwrap_or("");
+                    if dest_str.starts_with(r"\\?\") {
+                        let mut full_path = PathBuf::from(r"\\?\");
+                        full_path.push(&dest_str[4..]);
+                        full_path.push(sanitized);
+                        full_path
+                    } else {
+                        destination_path.join(sanitized)
+                    }
+                } else {
+                    destination_path.join(sanitized)
+                }
+            }
+            None => {
+                log::warn!("Skipping file with invalid name at index {}", i);
+                continue;
+            }
         };
 
+        // Log the processed path for debugging
+        log::debug!("Extracting to: {}", outpath.display());
+
         if file.name().ends_with('/') {
-            std::fs::create_dir_all(&outpath)?;
+            match std::fs::create_dir_all(&outpath) {
+                Ok(_) => (),
+                Err(e) => {
+                    log::error!("Failed to create directory {}: {}", outpath.display(), e);
+                    return Err(e.into());
+                }
+            }
         } else {
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
-                    std::fs::create_dir_all(p)?;
+                    match std::fs::create_dir_all(p) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            log::error!("Failed to create parent directory {}: {}", p.display(), e);
+                            return Err(e.into());
+                        }
+                    }
                 }
             }
-            let mut outfile = File::create(&outpath)?;
-            io::copy(&mut file, &mut outfile)?;
+
+            match File::create(&outpath) {
+                Ok(mut outfile) => {
+                    if let Err(e) = io::copy(&mut file, &mut outfile) {
+                        log::error!("Failed to write file {}: {}", outpath.display(), e);
+                        return Err(e.into());
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to create file {}: {}", outpath.display(), e);
+                    return Err(e.into());
+                }
+            }
         }
     }
     Ok(())
@@ -1292,7 +1373,6 @@ mod tests {
     use tempfile::TempDir;
 
     use flate2::read::GzEncoder;
-    use tempfile::TempDir;
 
     fn create_test_file(content: &str) -> (TempDir, String) {
         let dir = TempDir::new().unwrap();
@@ -1310,8 +1390,10 @@ mod tests {
         let file = File::create(&zip_path).unwrap();
         let mut zip = zip::ZipWriter::new(file);
 
-        zip.start_file("test.txt", zip::write::FileOptions::default())
-            .unwrap();
+        let options = zip::write::FileOptions::<()>::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        zip.start_file("test.txt", options).unwrap();
         zip.write_all(content.as_bytes()).unwrap();
         zip.finish().unwrap();
 

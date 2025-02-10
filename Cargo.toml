@@ -27,7 +27,7 @@ anyhow = "^1.0"
 rust_search = "2.1.0"
 flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
 tar = "0.4"
-zip = "0.6"
+zip = "2.2.2"
 xz2 = "0.1"
 thiserror = "1.0"
 
