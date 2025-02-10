@@ -17,6 +17,7 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
+
 /// This function retrieves the path to the git executable.
 ///
 /// # Purpose
@@ -287,6 +288,8 @@ pub fn make_long_path_compatible(path: &str) -> String {
 
         let mut long_path = PathBuf::from(r"\\?\");
         long_path.push(absolute_path);
+        #[cfg(windows)]
+        create_long_path_directory(long_path.to_str().unwrap());
         long_path.to_str().unwrap().to_string()
     } else {
         path.to_string()
