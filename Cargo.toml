@@ -11,7 +11,9 @@ reqwest = "0.12.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
 serde_json = "1.0"
-decompress = "0.6.0"
+regex = "1.4"
+colored = "2.1.0"
+sys-info = "0.9.1"
 git2 = "0.19.0"
 sha2 = "0.10.8"
 log = "0.4.21"
@@ -23,6 +25,16 @@ uuid = {version="1.10.0", features = ["v4"]}
 tempfile = "3.2"
 anyhow = "^1.0"
 rust_search = "2.1.0"
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
+tar = "0.4"
+zip = "2.2.2"
+xz2 = "0.1"
+thiserror = "1.0"
 
 rustpython-vm = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["freeze-stdlib"], optional = true }
 rustpython-stdlib = { git = "https://github.com/Hahihula/RustPython.git", branch = "test-rust-build", features = ["ssl-vendor"], optional = true }
+
+
+
+[dev-dependencies]
+tempfile = "3.2"
