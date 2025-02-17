@@ -46,7 +46,7 @@ pub fn run_python_script_from_file(
             match std::env::consts::OS {
                 "windows" => executor.execute_with_env(
                     "powershell",
-                    &vec![
+                    &[
                         "-Command",
                         python.unwrap_or("python3.exe"),
                         path,
@@ -54,20 +54,20 @@ pub fn run_python_script_from_file(
                     ],
                     envs_str,
                 ),
-                _ => executor.execute_with_env("bash", &vec!["-c", &callable], envs_str),
+                _ => executor.execute_with_env("bash", &["-c", &callable], envs_str),
             }
         }
         None => match std::env::consts::OS {
             "windows" => executor.execute(
                 "powershell",
-                &vec![
+                &[
                     "-Command",
                     python.unwrap_or("python3.exe"),
                     path,
                     args.unwrap_or(""),
                 ],
             ),
-            _ => executor.execute("bash", &vec!["-c", &callable]),
+            _ => executor.execute("bash", &["-c", &callable]),
         },
     };
 
@@ -128,9 +128,9 @@ pub fn run_idf_tools_py_with_features(
     features: &Vec<String>,
 ) -> Result<String, String> {
     let escaped_path = if std::env::consts::OS == "windows" {
-        replace_unescaped_spaces_win(&idf_tools_path)
+        replace_unescaped_spaces_win(idf_tools_path)
     } else {
-        replace_unescaped_spaces_posix(&idf_tools_path)
+        replace_unescaped_spaces_posix(idf_tools_path)
     };
     run_install_script(&escaped_path, environment_variables)?;
     run_install_python_env_script_with_features(&escaped_path, environment_variables, features)
@@ -170,7 +170,7 @@ fn run_install_python_env_script_with_features(
     features: &Vec<String>,
 ) -> Result<String, String> {
     let mut args = "install-python-env".to_string();
-    if features.len() > 0 {
+    if !features.is_empty() {
         args = format!("{} --features {}", args, features.join(","));
     }
     let output = run_python_script_from_file(
@@ -198,7 +198,7 @@ fn run_install_python_env_script_with_features(
 /// * `Result<String, String>` - On success, returns a `Result` containing the standard output of the Python script as a string.
 ///   On error, returns a `Result` containing the standard error of the Python script as a string.
 pub fn run_python_script(script: &str, python: Option<&str>) -> Result<String, String> {
-    let output = command_executor::execute_command(python.unwrap_or("python3"), &["-c", &script]);
+    let output = command_executor::execute_command(python.unwrap_or("python3"), &["-c", script]);
     match output {
         Ok(out) => {
             if out.status.success() {

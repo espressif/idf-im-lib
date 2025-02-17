@@ -1137,7 +1137,6 @@ pub fn get_esp_idf_by_version_and_mirror(
         Some(version)
     };
     let group_name = mirror
-        .as_deref()
         .map(|m| {
             if m.contains("https://gitee.com/") {
                 Some("EspressifSystems")
@@ -1146,14 +1145,7 @@ pub fn get_esp_idf_by_version_and_mirror(
             }
         })
         .flatten();
-    get_esp_idf_by_tag_name(
-        path,
-        tag.as_deref(),
-        tx,
-        mirror,
-        group_name,
-        with_submodules,
-    )
+    get_esp_idf_by_tag_name(path, tag, tx, mirror, group_name, with_submodules)
 }
 
 /// Clones the ESP-IDF repository from the specified URL, tag, or branch,
@@ -1173,7 +1165,6 @@ pub fn get_esp_idf_by_version_and_mirror(
 ///   On error, returns a `Result` containing a `git2::Error` indicating the cause of the error.
 ///
 ///
-
 pub fn get_esp_idf_by_tag_name(
     custom_path: &str,
     tag: Option<&str>,
@@ -1255,7 +1246,7 @@ pub fn single_version_post_install(
         &PathBuf::from(tool_install_directory),
         &PathBuf::from(idf_path),
     )
-    .unwrap_or(vec![]);
+    .unwrap_or_default();
     match std::env::consts::OS {
         "windows" => {
             // Creating desktop shortcut

@@ -38,7 +38,7 @@ pub fn get_git_path() -> Result<String, String> {
         _ => "which",
     };
 
-    let output = execute_command(cmd, &vec!["git"]).expect("failed to execute process");
+    let output = execute_command(cmd, &["git"]).expect("failed to execute process");
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -86,12 +86,8 @@ pub fn is_valid_idf_directory(path: &str) -> bool {
         return false;
     }
     match read_and_parse_tools_file(tools_json_path.to_str().unwrap()) {
-        Ok(_) => {
-            return true;
-        }
-        Err(_) => {
-            return false;
-        }
+        Ok(_) => true,
+        Err(_) => false,
     }
 }
 
@@ -309,7 +305,21 @@ pub fn parse_tool_set_config(config_path: &str) -> Result<()> {
         Ok(config) => config,
         Err(e) => return Err(anyhow!("Failed to parse config file: {}", e)),
     };
+    let config_path = get_default_config_path();
+    let mut current_config = match IdfConfig::from_file(&config_path) {
+        Ok(config) => config,
+        Err(e) => {
+            return Err(anyhow!("Config file not found: {}", e));
+        }
+    };
     for tool_set in config {
+        if current_config
+            .idf_installed
+            .iter()
+            .any(|i| i.path == tool_set.idf_location)
+        {
+            continue;
+        }
         let new_idf_tools_path = extract_tools_path_from_python_env_path(
             tool_set.env_vars.get("IDF_PYTHON_ENV_PATH").unwrap(),
         )
@@ -347,25 +357,18 @@ pub fn parse_tool_set_config(config_path: &str) -> Result<()> {
             python: tool_set.system_python_executable_path,
             idf_tools_path: new_idf_tools_path,
         };
-        let config_path = get_default_config_path();
-        let mut current_config = match IdfConfig::from_file(&config_path) {
-            Ok(config) => config,
-            Err(e) => {
-                return Err(anyhow!("Config file not found: {}", e));
-            }
-        };
+
         current_config.idf_installed.push(installation);
-        match current_config.to_file(config_path, true) {
-            Ok(_) => {
-                debug!("Updated config file with new tool set");
-                return Ok(());
-            }
-            Err(e) => {
-                return Err(anyhow!("Failed to update config file: {}", e));
-            }
+    }
+    match current_config.to_file(config_path, true) {
+        Ok(_) => {
+            debug!("Updated config file with new tool set");
+            return Ok(());
+        }
+        Err(e) => {
+            return Err(anyhow!("Failed to update config file: {}", e));
         }
     }
-    Ok(())
 }
 
 /// Converts a path to a long path compatible with Windows.
