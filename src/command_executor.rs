@@ -9,7 +9,7 @@ pub trait CommandExecutor {
     fn execute_with_env(
         &self,
         command: &str,
-        args: &Vec<&str>,
+        args: &[&str],
         env: Vec<(&str, &str)>,
     ) -> std::io::Result<Output>;
     fn run_script_from_string(&self, script: &str) -> std::io::Result<Output>;
@@ -24,7 +24,7 @@ impl CommandExecutor for DefaultExecutor {
     fn execute_with_env(
         &self,
         command: &str,
-        args: &Vec<&str>,
+        args: &[&str],
         env: Vec<(&str, &str)>,
     ) -> std::io::Result<Output> {
         let mut binding = Command::new(command);
@@ -89,7 +89,7 @@ impl CommandExecutor for WindowsExecutor {
     fn execute_with_env(
         &self,
         command: &str,
-        args: &Vec<&str>,
+        args: &[&str],
         env: Vec<(&str, &str)>,
     ) -> std::io::Result<Output> {
         use std::os::windows::process::CommandExt;

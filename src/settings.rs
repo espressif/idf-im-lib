@@ -99,7 +99,7 @@ impl Settings {
 
         for (key, value) in cli_settings {
             if let Some(v) = value {
-                if v.to_string().len() < 1 as usize {
+                if v.to_string().len() < 1_usize {
                     continue;
                 }
                 if key != "config" {
@@ -115,13 +115,12 @@ impl Settings {
         let mut save_path = self.config_file_save_path.clone().unwrap();
         if save_path.is_dir() {
             save_path = save_path.join("eim_config.toml");
-        } else {
-            if let Some(parent) = save_path.parent() {
-                if !parent.exists() {
-                    fs::create_dir_all(parent).unwrap();
-                }
+        } else if let Some(parent) = save_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent).unwrap();
             }
         }
+
         let toml_value = toml::to_string(self).map_err(|e| ConfigError::Message(e.to_string()))?;
         let mut file = OpenOptions::new()
             .write(true)
