@@ -544,7 +544,7 @@ fn get_elf_rom_dir(idf_tools_path: &PathBuf) -> Result<PathBuf, std::io::Error> 
         // Sort the subdirectories
         subdirs.sort();
         if let Some(last_subdir) = subdirs.last() {
-            log::debug!("Using ELF ROM directory: {}", last_subdir.display());
+            log::info!("ELF ROM directory found: {}", last_subdir.display());
             return Ok(last_subdir.clone());
         } else {
             log::warn!("No ELF ROM directories found in {}", elf_rom_dir.display());
